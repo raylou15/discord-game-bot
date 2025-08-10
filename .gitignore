@@ -134,3 +134,14 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Prevent committing any config or secrets
+config.json
+config.local.json
+
+# Local DB/data files (Mongo/SQLite/etc.)
+data/
+*.sqlite
+*.sqlite3
+*.db
+*.db3
