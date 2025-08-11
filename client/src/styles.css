@@ -5,6 +5,9 @@
   --text-color: rgba(255, 255, 255, 0.87);
   --accent-color: #646cff;
   --accent-hover: #535bf2;
+  --good-color: #64ffb4;
+  --evil-color: #ff788c;
+  --neutral-color: #ffd95e;
 
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -115,6 +118,76 @@ button:focus, button:focus-visible { outline: 3px solid var(--accent-color); }
   border-radius: 3px;
 }
 
+/* === Game Board === */
+.game-board {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+
+.board-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 8px;
+}
+
+.winner {
+  font-weight: 700;
+  font-size: 1.2em;
+  color: var(--good-color);
+}
+
+.players {
+  display: grid;
+  gap: 8px;
+}
+
+.players h3 {
+  margin-top: 0.5em;
+}
+
+.players ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.players li {
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 6px;
+}
+
+.players li.you {
+  background: rgba(100,255,180,0.15);
+  font-weight: bold;
+}
+
+/* === Phase Panels === */
+.panel.night {
+  border-left: 4px solid var(--evil-color);
+}
+.panel.day {
+  border-left: 4px solid var(--neutral-color);
+}
+
+.targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.targets button {
+  flex: 1 1 auto;
+  min-width: 100px;
+}
+
 /* === Requirements Chips === */
 .reqs {
   display: flex;
@@ -131,126 +204,27 @@ button:focus, button:focus-visible { outline: 3px solid var(--accent-color); }
 .req-chip.ok { border-color: rgba(100,255,180,0.4); }
 .req-chip.warn { border-color: rgba(255,220,100,0.35); }
 
-/* === Player List === */
-.players-panel {
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.player-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.player-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255,255,255,0.05);
-  border-radius: 8px;
-  padding: 6px 8px;
-}
-.player-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-}
-.player-info { display: flex; flex-direction: column; }
-.small { font-size: 12px; }
-.muted { opacity: 0.75; }
-
-/* === Role Cards === */
-.role-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 10px;
-}
-.role-card {
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 12px;
-  padding: 10px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
-  opacity: 0.65;
-}
-.role-card.on { opacity: 1; }
-.role-card.good { box-shadow: inset 0 0 0 1px rgba(100,255,180,0.18); }
-.role-card.evil { box-shadow: inset 0 0 0 1px rgba(255,120,140,0.18); }
-.role-card-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
-.role-name { font-weight: 700; }
-.role-badge { font-size: 11px; opacity: 0.85; }
-.role-card-blurb { font-size: 13px; opacity: 0.9; }
-.role-card-foot { margin-top: 6px; font-size: 12px; opacity: 0.75; }
-
-/* === Host Settings === */
-.settings-row { display: flex; justify-content: space-between; align-items: baseline; }
-.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 8px; }
-.sw { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
-.sw input[type="checkbox"] { transform: scale(1.15); }
-
-/* === Action Bar === */
-.action-bar {
-  display: flex;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-/* === Modal === */
-.modal-backdrop {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.6);
-  backdrop-filter: blur(4px);
-  display: grid; place-items: center;
-  z-index: 50;
-}
-.modal-card {
-  width: min(820px, 92vw);
-  max-height: 80vh;
-  overflow: auto;
-  border-radius: 16px;
-  background: var(--bg-panel);
-  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-  border: 1px solid rgba(255,255,255,0.08);
-}
-.modal-header, .modal-footer { padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
-.modal-header { border-bottom: 1px solid rgba(255,255,255,0.06); justify-content: space-between; }
-.modal-footer { border-top: 1px solid rgba(255,255,255,0.06); justify-content: flex-end; }
-.modal-body { padding: 16px; display: grid; gap: 12px; }
-.icon-btn {
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.16);
-  background: transparent;
-  padding: 6px 10px;
-  font-weight: 700;
-}
-.icon-btn:hover { background: rgba(255,255,255,0.06); }
-
-/* === HUD + Chat === */
-.hud-bar {
-  position: fixed; left: 12px; bottom: 12px;
-  display: flex; gap: 8px; align-items: center;
-  background: rgba(0,0,0,0.35);
-  border: 1px solid rgba(255,255,255,0.12);
-  padding: 8px 10px;
-  border-radius: 12px;
-  backdrop-filter: blur(6px);
-  z-index: 30;
-}
-.hud-btn { background: transparent; border-color: rgba(255,255,255,0.18); }
-.conn-dot { width: 10px; height: 10px; border-radius: 999px; background: rgba(255,255,255,0.3); }
-.conn-dot.ok { background: #68f0b6; }
-.conn-dot.bad { background: #f06868; }
-
 /* === Player readiness indicators === */
 .player-card .ready-indicator {
   font-size: 12px;
   font-weight: 600;
 }
+.player-card.ready .ready-indicator { color: #68f0b6; }
+.player-card.not-ready .ready-indicator { color: #f06868; }
 
-.player-card.ready .ready-indicator {
-  color: #68f0b6; /* green for ready */
+/* === Responsive === */
+@media (max-width: 768px) {
+  .board-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .targets {
+    flex-direction: column;
+  }
 }
 
-.player-card.not-ready .ready-indicator {
-  color: #f06868; /* red for not ready */
+.phase-timer {
+  font-size: 0.9em;
+  color: #ffcb6b;
+  margin-left: 4px;
 }

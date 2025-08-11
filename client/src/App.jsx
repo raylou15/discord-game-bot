@@ -1,9 +1,11 @@
-// src/App.jsx (only the LoadingGate usage changed a bit)
+// src/App.jsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import LoadingGate from "./components/LoadingGate.jsx";
 import Lobby from "./components/Lobby.jsx";
+import GameBoard from "./components/GameBoard.jsx";          // ⬅️ NEW
 import { initDiscord } from "./sdk/discord.js";
 import { connectPresence } from "./sdk/presence.js";
+import { connect, onMessage } from "./sdk/ws";                // ⬅️ NEW
 
 const TIPS = [
   "Tip: Wolves win at parity—don’t tunnel on one suspect.",
@@ -15,9 +17,14 @@ const TIPS = [
 export default function App() {
   const [phase, setPhase] = useState("boot");
   const [me, setMe] = useState(null);
+
+  // Presence (your existing lobby socket)
   const [wsApi, setWsApi] = useState(null);
   const [roomState, setRoomState] = useState(null);
   const [wsConnected, setWsConnected] = useState(false);
+
+  // Game socket state (from our new WS engine)
+  const [gameState, setGameState] = useState(null);           // ⬅️ NEW
 
   const boot = useCallback(async () => {
     const { sdk, user } = await initDiscord();
@@ -31,6 +38,8 @@ export default function App() {
       me: user,
       onState: (state) => {
         setRoomState(state);
+        // You can still flip to "game" if your presence announces it,
+        // but we’ll also flip when the game WS sends first state.
         if (state.started) setPhase("game");
       },
       onConnection: (connected) => setWsConnected(connected),
@@ -39,7 +48,20 @@ export default function App() {
     setPhase("lobby");
   }, []);
 
+  // Clean up presence socket on unmount
   useEffect(() => () => wsApi?.close?.(), [wsApi]);
+
+  // === NEW: Join handler the Lobby will call ===
+  function join(roomId, id, name) {
+    // Open game WS and start listening for engine state
+    connect(roomId, id, name);
+    onMessage((m) => {
+      if (m.type === "state") {
+        setGameState(m.state);
+        setPhase("game"); // switch to GameBoard on first state
+      }
+    });
+  }
 
   const content = useMemo(() => {
     switch (phase) {
@@ -54,14 +76,22 @@ export default function App() {
           />
         );
       case "lobby":
-        return <Lobby me={me} state={roomState} api={wsApi} wsConnected={wsConnected} />;
-      case "game":
         return (
+          <Lobby
+            me={me}
+            state={roomState}
+            api={wsApi}
+            wsConnected={wsConnected}
+            onJoin={join}                       // ⬅️ pass join into Lobby
+          />
+        );
+      case "game":
+        return gameState ? (
+          <GameBoard state={gameState} />      // ⬅️ render the live game view
+        ) : (
           <div className="panel" style={{ textAlign: "center" }}>
-            <h2>Game Scene</h2>
-            <p style={{ opacity: 0.8 }}>
-              Lobby locked. You can now implement role assignment and night/day cycles.
-            </p>
+            <h2>Waiting for game state…</h2>
+            <p style={{ opacity: 0.8 }}>If this hangs, make sure your server WS is running and Lobby called onJoin().</p>
             <button style={{ marginTop: 16 }} onClick={() => setPhase("lobby")}>
               (Dev) Back to Lobby
             </button>
@@ -70,7 +100,7 @@ export default function App() {
       default:
         return null;
     }
-  }, [phase, me, roomState, wsApi, wsConnected, boot, onBooted]);
+  }, [phase, me, roomState, wsApi, wsConnected, boot, onBooted, gameState]);
 
   return <div>{content}</div>;
 }

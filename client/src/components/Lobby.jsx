@@ -14,24 +14,46 @@ function avatarUrl(p) {
   return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
 }
 
-export default function Lobby({ me, state, api, wsConnected }) {
-  const players = state?.players || [];
+/**
+ * Props:
+ * - me: current user object
+ * - state: presence/lobby state from connectPresence()  ➜ renamed to presenceState
+ * - api: presence API (setReady, startGame, setSettings, etc.)
+ * - wsConnected: boolean for presence socket
+ * - onJoin(roomId, id, name): callback from App to open game WS
+ */
+export default function Lobby({ me, state: presenceState, api, wsConnected, onJoin }) {
+  const players = presenceState?.players || [];
   const meEntry = players.find((p) => p.id === me?.id);
-  const isHost = state?.hostId === me?.id;
+  const isHost = presenceState?.hostId === me?.id;
   const everyoneReady = players.length > 0 && players.every((p) => p.ready);
   const meetsMinPlayers = players.length >= MIN_PLAYERS;
 
+  // Local UI state
   const [helpOpen, setHelpOpen] = useState(false);
   const [countingDown, setCountingDown] = useState(false);
   const [count, setCount] = useState(3);
   const cdTimer = useRef(null);
+
+  // Track if we've called onJoin() already to avoid duplicates
+  const joinedRef = useRef(false);
+
+  // When presence connection is up and we know the room & me, notify App to open game WS
+  useEffect(() => {
+    const roomId = presenceState?.roomId || presenceState?.id || presenceState?.room; // tolerate variants
+    const readyToJoin = wsConnected && !!roomId && !!me?.id && typeof onJoin === "function";
+    if (readyToJoin && !joinedRef.current) {
+      joinedRef.current = true;
+      onJoin(roomId, me.id, me.username || me.global_name || me.name || `Player-${me.id.slice(0, 4)}`);
+    }
+  }, [wsConnected, presenceState, me, onJoin]);
 
   const canStart =
     isHost &&
     everyoneReady &&
     meetsMinPlayers &&
     wsConnected &&
-    !state?.started &&
+    !presenceState?.started &&
     !countingDown;
 
   const statusLine = useMemo(() => {
@@ -51,7 +73,7 @@ export default function Lobby({ me, state, api, wsConnected }) {
   useEffect(() => {
     if (!countingDown) return;
     if (count <= 0) {
-      api.startGame?.();
+      api.startGame?.();        // Presence tells everyone the lobby is locked/started
       setCountingDown(false);
       return;
     }
@@ -111,10 +133,7 @@ export default function Lobby({ me, state, api, wsConnected }) {
                     />
                     <div className="player-info">
                       <strong>{p.name}</strong>
-                      <div
-                        className={`ready-indicator ${p.ready ? "ready" : "not-ready"
-                          }`}
-                      >
+                      <div className={`ready-indicator ${p.ready ? "ready" : "not-ready"}`}>
                         {p.ready ? "✅ Ready" : "❌ Not ready"}
                       </div>
                     </div>
@@ -127,28 +146,40 @@ export default function Lobby({ me, state, api, wsConnected }) {
           {/* Fixed button bar */}
           <div className="panel action-bar">
             <button
-              onClick={() => api.setReady(!meEntry?.ready)}
-              disabled={!wsConnected || state?.started || countingDown}
+              onClick={() => api.setReady?.(!meEntry?.ready)}
+              disabled={!wsConnected || presenceState?.started || countingDown}
             >
-              {!wsConnected
-                ? "Connecting…"
-                : meEntry?.ready
-                  ? "Unready"
-                  : "Ready"}
+              {!wsConnected ? "Connecting…" : meEntry?.ready ? "Unready" : "Ready"}
             </button>
             <button disabled={!canStart} onClick={beginCountdown}>
               {countingDown ? "Starting…" : "Start Game"}
             </button>
+            // inside Lobby.jsx, near your action bar, gated by DEV and isHost
+            {import.meta.env.DEV && isHost && (
+              <button
+                className="secondary"
+                onClick={async () => {
+                  const roomId = (presenceState?.roomId || presenceState?.id || presenceState?.room);
+                  await fetch("/api/dev/bots", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ roomId, count: 6 })
+                  });
+                }}
+              >
+                Add 6 Bots 🤖
+              </button>
+            )}
           </div>
         </div>
 
         {/* Right column */}
         <div className="right-col scroll-inner">
-          <RolePreview playerCount={players.length} settings={state?.settings} />
+          <RolePreview playerCount={players.length} settings={presenceState?.settings} />
           <HostSettings
             isHost={isHost}
             api={api}
-            roomState={state}
+            roomState={presenceState}
             playerCount={players.length}
           />
         </div>
