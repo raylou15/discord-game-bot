@@ -1,11 +1,22 @@
 // src/components/LoadingGate.jsx
 import { useEffect, useState } from "react";
+import TipCarousel from "./TipCarousel.jsx";
+import ArtBanner from "./ArtBanner.jsx";
+
+const DEFAULT_TIPS = [
+  "Tip: Wolves win at parity. Count carefully.",
+  "Tip: Seer results are powerful—protect your Seer.",
+  "Tip: Wolves, avoid voting in a pack.",
+  "Tip: Hunters take someone with them on elimination.",
+  "Tip: Doctors can self-protect only if house rules allow.",
+];
 
 export default function LoadingGate({
   loader,
   onLoaded,
   title = "Connecting to Discord…",
-  subtitle = "Please wait while we set things up",
+  subtitle = "Preparing your lobby",
+  tips = DEFAULT_TIPS,
   children,
 }) {
   const [error, setError] = useState(null);
@@ -13,43 +24,37 @@ export default function LoadingGate({
   useEffect(() => {
     let mounted = true;
     loader()
-      .then((v) => {
-        if (mounted) onLoaded(v);
-      })
+      .then((v) => mounted && onLoaded(v))
       .catch((e) => setError(e?.message ?? "Something went wrong"));
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [loader, onLoaded]);
 
   if (error) {
     return (
-      <div className="panel" style={{ textAlign: "center" }}>
-        <h2>Couldn’t connect</h2>
-        <p style={{ opacity: 0.8, marginTop: "8px" }}>{error}</p>
-        <p style={{ opacity: 0.6, marginTop: "16px", fontSize: "14px" }}>
-          Make sure you launched this inside Discord as an Activity.
-        </p>
+      <div>
+        <ArtBanner title="Connection Issue" subtitle="We couldn’t reach Discord" />
+        <div className="panel" style={{ textAlign: "center" }}>
+          <h2>Couldn’t connect</h2>
+          <p style={{ opacity: 0.8, marginTop: 8 }}>{error}</p>
+          <p className="muted">
+            Make sure you launched this inside Discord as an Activity.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="panel" style={{ textAlign: "center" }}>
-      <div
-        style={{
-          width: 64,
-          height: 64,
-          margin: "0 auto 16px",
-          borderRadius: "50%",
-          background: "rgba(255,255,255,0.08)",
-          animation: "pulse 1.5s infinite",
-        }}
-      />
-      <h2>{title}</h2>
-      <p style={{ opacity: 0.8, marginTop: "6px" }}>{subtitle}</p>
-      {/* Keep children mounted for preloading */}
-      <div style={{ display: "none" }}>{children}</div>
+    <div>
+      <ArtBanner />
+      <div className="panel" style={{ textAlign: "center" }}>
+        <div className="loader-ring" aria-hidden />
+        <h2>{title}</h2>
+        <p style={{ opacity: 0.8, marginTop: 6 }}>{subtitle}</p>
+        <TipCarousel tips={tips} />
+        {/* Keep children mounted for preloading */}
+        <div style={{ display: "none" }}>{children}</div>
+      </div>
     </div>
   );
 }

@@ -1,8 +1,16 @@
+// src/App.jsx (only the LoadingGate usage changed a bit)
 import { useCallback, useEffect, useMemo, useState } from "react";
 import LoadingGate from "./components/LoadingGate.jsx";
 import Lobby from "./components/Lobby.jsx";
 import { initDiscord } from "./sdk/discord.js";
 import { connectPresence } from "./sdk/presence.js";
+
+const TIPS = [
+  "Tip: Wolves win at parity—don’t tunnel on one suspect.",
+  "Tip: Soft‑claiming roles can bait wolves. Risky!",
+  "Tip: Vote history tells a story.",
+  "Tip: Seer results? Confirm if you must, but beware of counter‑claims.",
+];
 
 export default function App() {
   const [phase, setPhase] = useState("boot");
@@ -31,9 +39,7 @@ export default function App() {
     setPhase("lobby");
   }, []);
 
-  useEffect(() => {
-    return () => wsApi?.close?.();
-  }, [wsApi]);
+  useEffect(() => () => wsApi?.close?.(), [wsApi]);
 
   const content = useMemo(() => {
     switch (phase) {
@@ -43,18 +49,12 @@ export default function App() {
             loader={boot}
             onLoaded={onBooted}
             title="Connecting to Discord…"
-            subtitle="Please wait while we prepare the lobby"
+            subtitle="Sharpening pitchforks and silver bullets"
+            tips={TIPS}
           />
         );
       case "lobby":
-        return (
-          <Lobby
-            me={me}
-            state={roomState}
-            api={wsApi}
-            wsConnected={wsConnected}
-          />
-        );
+        return <Lobby me={me} state={roomState} api={wsApi} wsConnected={wsConnected} />;
       case "game":
         return (
           <div className="panel" style={{ textAlign: "center" }}>

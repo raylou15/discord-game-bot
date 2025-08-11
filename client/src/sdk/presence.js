@@ -4,7 +4,6 @@ let ws = null;
 export function connectPresence({ sdk, me, onState, onConnection }) {
   const roomId = `${sdk.guildId || "g"}:${sdk.channelId || "c"}`;
 
-  // IMPORTANT: use the current host (discordsays.com inside Discord)
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const base = `${proto}://${location.host}`;
   const url = `${base}/ws?roomId=${encodeURIComponent(roomId)}&id=${encodeURIComponent(
@@ -31,10 +30,12 @@ export function connectPresence({ sdk, me, onState, onConnection }) {
 
     ws.onopen = () => { log("connected"); isOpen = true; onConnection?.(true); flush(); };
     ws.onmessage = (ev) => {
-      try { const msg = JSON.parse(ev.data); if (msg.type === "state") onState(msg); }
-      catch (e) { log("bad message", e); }
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === "state") onState(msg);
+      } catch (e) { log("bad message", e); }
     };
-    ws.onerror = (err) => { log("error", err); /* onclose will handle retry */ };
+    ws.onerror = (err) => { log("error", err); };
     ws.onclose = (ev) => {
       log("closed", ev.code, ev.reason || "");
       isOpen = false; onConnection?.(false);
@@ -46,6 +47,7 @@ export function connectPresence({ sdk, me, onState, onConnection }) {
 
   return {
     setReady(ready) { safeSend({ type: "ready", ready: !!ready }); },
+    updateSettings(partial) { safeSend({ type: "settings", settings: partial }); },
     startGame() { safeSend({ type: "start" }); },
     close() { manualClose = true; clearTimeout(reconnectTimer); ws?.close(); },
   };
