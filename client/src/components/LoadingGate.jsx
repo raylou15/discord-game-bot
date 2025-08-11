@@ -1,10 +1,11 @@
+// src/components/LoadingGate.jsx
 import { useEffect, useState } from "react";
 
 export default function LoadingGate({
   loader,
   onLoaded,
-  title = "Spinning up the room…",
-  subtitle = "Talking to Discord",
+  title = "Connecting to Discord…",
+  subtitle = "Please wait while we set things up",
   children,
 }) {
   const [error, setError] = useState(null);
@@ -23,10 +24,10 @@ export default function LoadingGate({
 
   if (error) {
     return (
-      <div className="mx-auto max-w-md p-8 text-center">
-        <h1>Couldn’t connect</h1>
-        <p style={{ opacity: 0.8, marginTop: 8 }}>{String(error)}</p>
-        <p style={{ opacity: 0.6, marginTop: 16, fontSize: 14 }}>
+      <div className="panel" style={{ textAlign: "center" }}>
+        <h2>Couldn’t connect</h2>
+        <p style={{ opacity: 0.8, marginTop: "8px" }}>{error}</p>
+        <p style={{ opacity: 0.6, marginTop: "16px", fontSize: "14px" }}>
           Make sure you launched this inside Discord as an Activity.
         </p>
       </div>
@@ -34,20 +35,20 @@ export default function LoadingGate({
   }
 
   return (
-    <div className="mx-auto max-w-md p-8 text-center">
+    <div className="panel" style={{ textAlign: "center" }}>
       <div
-        className="animate-pulse"
         style={{
           width: 64,
           height: 64,
-          borderRadius: 16,
           margin: "0 auto 16px",
+          borderRadius: "50%",
           background: "rgba(255,255,255,0.08)",
+          animation: "pulse 1.5s infinite",
         }}
       />
-      <h1 style={{ fontSize: 22, fontWeight: 700 }}>{title}</h1>
-      <p style={{ opacity: 0.8, marginTop: 6 }}>{subtitle}</p>
-      {/* Keep children mounted so you can preload assets if you like */}
+      <h2>{title}</h2>
+      <p style={{ opacity: 0.8, marginTop: "6px" }}>{subtitle}</p>
+      {/* Keep children mounted for preloading */}
       <div style={{ display: "none" }}>{children}</div>
     </div>
   );
