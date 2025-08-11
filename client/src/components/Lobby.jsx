@@ -18,11 +18,11 @@ function avatarUrl(p) {
  * Props:
  * - me: current user object
  * - state: presence/lobby state from connectPresence()  ➜ renamed to presenceState
- * - api: presence API (setReady, startGame, setSettings, etc.)
+ * - presence: presence API (setReady, startGame, setSettings, addBots, etc.)
  * - wsConnected: boolean for presence socket
  * - onJoin(roomId, id, name): callback from App to open game WS
  */
-export default function Lobby({ me, state: presenceState, api, wsConnected, onJoin }) {
+export default function Lobby({ me, state: presenceState, presence, wsConnected, onJoin }) {
   const players = presenceState?.players || [];
   const meEntry = players.find((p) => p.id === me?.id);
   const isHost = presenceState?.hostId === me?.id;
@@ -40,7 +40,7 @@ export default function Lobby({ me, state: presenceState, api, wsConnected, onJo
 
   // When presence connection is up and we know the room & me, notify App to open game WS
   useEffect(() => {
-    const roomId = presenceState?.roomId || presenceState?.id || presenceState?.room; // tolerate variants
+    const roomId = presenceState?.roomId || presenceState?.id || presenceState?.room;
     const readyToJoin = wsConnected && !!roomId && !!me?.id && typeof onJoin === "function";
     if (readyToJoin && !joinedRef.current) {
       joinedRef.current = true;
@@ -73,14 +73,14 @@ export default function Lobby({ me, state: presenceState, api, wsConnected, onJo
   useEffect(() => {
     if (!countingDown) return;
     if (count <= 0) {
-      api.startGame?.();        // Presence tells everyone the lobby is locked/started
+      presence.startGame?.();
       setCountingDown(false);
       return;
     }
     cdTimer.current && clearTimeout(cdTimer.current);
     cdTimer.current = setTimeout(() => setCount((c) => c - 1), 1000);
     return () => clearTimeout(cdTimer.current);
-  }, [countingDown, count, api]);
+  }, [countingDown, count, presence]);
 
   return (
     <div className="viewport">
@@ -148,7 +148,7 @@ export default function Lobby({ me, state: presenceState, api, wsConnected, onJo
             {isHost && me?.id === "178689418415177729" && (
               <button
                 className="secondary"
-                onClick={() => presence.addBots(6)}
+                onClick={() => presence.addBots?.(6)}
               >
                 Add 6 Bots 🤖
               </button>
@@ -156,9 +156,9 @@ export default function Lobby({ me, state: presenceState, api, wsConnected, onJo
 
             <button
               className="primary"
-              onClick={() => presence.setReady(!me.ready)}
+              onClick={() => presence.setReady?.(!meEntry?.ready)}
             >
-              {me.ready ? "Unready" : "Ready"}
+              {meEntry?.ready ? "Unready" : "Ready"}
             </button>
             <button disabled={!canStart} onClick={beginCountdown}>
               {countingDown ? "Starting…" : "Start Game"}
@@ -188,7 +188,7 @@ export default function Lobby({ me, state: presenceState, api, wsConnected, onJo
           <RolePreview playerCount={players.length} settings={presenceState?.settings} />
           <HostSettings
             isHost={isHost}
-            api={api}
+            api={presence}
             roomState={presenceState}
             playerCount={players.length}
           />

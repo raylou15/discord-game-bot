@@ -79,10 +79,10 @@ export default function App() {
         return (
           <Lobby
             me={me}
-            state={roomState}
-            api={wsApi}
+            state={presenceState}
+            presence={presence} // ✅ now in scope
             wsConnected={wsConnected}
-            onJoin={join}                       // ⬅️ pass join into Lobby
+            onJoin={join}
           />
         );
       case "game":
