@@ -154,7 +154,6 @@ export default function Lobby({ me, state: presenceState, api, wsConnected, onJo
             <button disabled={!canStart} onClick={beginCountdown}>
               {countingDown ? "Starting…" : "Start Game"}
             </button>
-            // inside Lobby.jsx, near your action bar, gated by DEV and isHost
             {import.meta.env.DEV && isHost && (
               <button
                 className="secondary"
