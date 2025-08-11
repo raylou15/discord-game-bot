@@ -555,3 +555,74 @@ body { display: block; }
 .chat-line { font-size: 14px; margin: 6px 0; }
 .chat-input-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 8px; }
 .chat-input-row input { border-radius: 8px; border: 1px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.25); color: var(--text-color); padding: 8px; }
+
+.left-col, .right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.players-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.scroll-inner {
+  overflow-y: auto;
+}
+
+.player-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.player-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.player-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.action-bar {
+  display: flex;
+  gap: 10px;
+}
+
+.viewport {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) 1fr;
+  gap: 12px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.scroll-inner::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scroll-inner::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15);
+  border-radius: 3px;
+}
