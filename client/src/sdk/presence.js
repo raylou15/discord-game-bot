@@ -1,49 +1,74 @@
-// src/sdk/presence.js
-let ws = null;
+// client/src/sdk/presence.js
+import { connect, onMessage, send } from "./ws";
 
 export function connectPresence({ sdk, me, onState, onConnection }) {
-  const roomId = `${sdk.guildId || "g"}:${sdk.channelId || "c"}`;
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  const base = `${proto}://${location.host}`;
-  const url =
-    `${base}/ws?roomId=${encodeURIComponent(roomId)}` +
-    `&id=${encodeURIComponent(me.id)}` +
-    `&name=${encodeURIComponent(me.global_name || me.username)}` +
-    `&avatar=${encodeURIComponent(me.avatar || "")}` +
-    `&discrim=${encodeURIComponent(me.discriminator || "0")}`;
-
-  let isOpen = false;
+  let ws;
+  let reconnectTimer;
   let manualClose = false;
-  let pending = [];
-  let reconnectTimer = null;
 
-  function flush() { for (const m of pending) ws?.send(m); pending = []; }
-  function safeSend(obj) {
-    const str = JSON.stringify(obj);
-    if (isOpen && ws?.readyState === WebSocket.OPEN) ws.send(str);
-    else pending.push(str);
+  function safeSend(msg) {
+    try {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(msg));
+      }
+    } catch (e) {
+      console.warn("Failed to send WS message:", e);
+    }
   }
 
-  function connect() {
-    ws = new WebSocket(url);
-    ws.onopen = () => { isOpen = true; onConnection?.(true); flush(); };
-    ws.onmessage = (ev) => {
-      try { const msg = JSON.parse(ev.data); if (msg.type === "state") onState(msg); }
-      catch {}
+  function connectWS() {
+    const roomId =
+      sdk?.channelId || sdk?.guildId || sdk?.instanceId || me?.id || "dev-room";
+    const name = me?.username || me?.global_name || "Unknown";
+
+    ws = connect(roomId, me?.id, name);
+
+    onMessage((m) => {
+      if (m.type === "state") {
+        onState(m.state);
+      } else if (m.type === "error") {
+        console.error("Server error:", m.error);
+      }
+    });
+
+    ws.onopen = () => {
+      console.log("[presence] WS connected");
+      onConnection(true);
     };
-    ws.onerror = () => {};
+
     ws.onclose = () => {
-      isOpen = false; onConnection?.(false);
-      if (!manualClose) { clearTimeout(reconnectTimer); reconnectTimer = setTimeout(connect, 2000); }
+      console.log("[presence] WS disconnected");
+      onConnection(false);
+      if (!manualClose) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connectWS, 3000);
+      }
     };
   }
 
-  connect();
+  connectWS();
 
   return {
-    setReady(ready) { safeSend({ type: "ready", ready: !!ready }); },
-    updateSettings(partial) { safeSend({ type: "settings", settings: partial }); },
-    startGame() { safeSend({ type: "start" }); },
-    close() { manualClose = true; clearTimeout(reconnectTimer); ws?.close(); },
+    // ✅ Match server.js message type
+    setReady(ready) {
+      safeSend({ type: "toggleReady", ready: !!ready });
+    },
+    startGame() {
+      safeSend({ type: "start" });
+    },
+    nightAction(targetId) {
+      safeSend({ type: "nightAction", targetId });
+    },
+    vote(targetId) {
+      safeSend({ type: "vote", targetId });
+    },
+    resetGame() {
+      safeSend({ type: "reset" });
+    },
+    close() {
+      manualClose = true;
+      clearTimeout(reconnectTimer);
+      ws?.close();
+    },
   };
 }
