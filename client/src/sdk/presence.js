@@ -1,34 +1,22 @@
 // client/src/sdk/presence.js
-import { connect, onMessage, send } from "./ws";
+import { connect, onMessage } from "./ws";
 
 export function connectPresence({ sdk, me, onState, onConnection }) {
-  let ws;
   let reconnectTimer;
   let manualClose = false;
 
-  function safeSend(msg) {
-    try {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(msg));
-      }
-    } catch (e) {
-      console.warn("Failed to send WS message:", e);
-    }
-  }
-
   function connectWS() {
-    const roomId =
-      sdk?.channelId || sdk?.guildId || sdk?.instanceId || me?.id || "dev-room";
+    const roomId = sdk?.channelId || sdk?.guildId || "dev-room";
     const name = me?.username || me?.global_name || "Unknown";
+    const avatar = me?.avatar
+      ? `https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.png`
+      : null;
 
-    ws = connect(roomId, me?.id, name);
+    const ws = connect(roomId, me?.id, name, avatar);
 
     onMessage((m) => {
-      if (m.type === "state") {
-        onState(m.state);
-      } else if (m.type === "error") {
-        console.error("Server error:", m.error);
-      }
+      if (m.type === "state") onState(m.state);
+      if (m.type === "error") console.error("Server error:", m.error);
     });
 
     ws.onopen = () => {
@@ -44,26 +32,34 @@ export function connectPresence({ sdk, me, onState, onConnection }) {
         reconnectTimer = setTimeout(connectWS, 3000);
       }
     };
+
+    return ws;
   }
 
-  connectWS();
+  const ws = connectWS();
 
   return {
-    // ✅ Match server.js message type
     setReady(ready) {
-      safeSend({ type: "toggleReady", ready: !!ready });
+      ws.send(JSON.stringify({ type: "toggleReady", ready: !!ready }));
     },
     startGame() {
-      safeSend({ type: "start" });
+      ws.send(JSON.stringify({ type: "start" }));
     },
     nightAction(targetId) {
-      safeSend({ type: "nightAction", targetId });
+      ws.send(JSON.stringify({ type: "nightAction", targetId }));
     },
     vote(targetId) {
-      safeSend({ type: "vote", targetId });
+      ws.send(JSON.stringify({ type: "vote", targetId }));
     },
     resetGame() {
-      safeSend({ type: "reset" });
+      ws.send(JSON.stringify({ type: "reset" }));
+    },
+    addBots(count = 6) {
+      fetch("/api/dev/bots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId: sdk?.channelId || "dev-room", count }),
+      });
     },
     close() {
       manualClose = true;

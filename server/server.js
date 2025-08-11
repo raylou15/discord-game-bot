@@ -227,7 +227,8 @@ function broadcast(roomId) {
 
 // ---- WebSocket Connection ----
 wss.on("connection", (ws, req) => {
-  const { roomId, id, name } = parseQuery(req.url || "");
+  const { roomId, id, name, avatar } = parseQuery(req.url || "");
+  Engine.join(roomId, { id, name: ws.playerName, avatar }, false);
 
   if (!roomId || !id) {
     safeSend(ws, { type: "error", error: "Missing roomId or id" });

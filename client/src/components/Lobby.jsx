@@ -145,11 +145,20 @@ export default function Lobby({ me, state: presenceState, api, wsConnected, onJo
 
           {/* Fixed button bar */}
           <div className="panel action-bar">
+            {isHost && me?.id === "178689418415177729" && (
+              <button
+                className="secondary"
+                onClick={() => presence.addBots(6)}
+              >
+                Add 6 Bots 🤖
+              </button>
+            )}
+
             <button
-              onClick={() => api.setReady?.(!meEntry?.ready)}
-              disabled={!wsConnected || presenceState?.started || countingDown}
+              className="primary"
+              onClick={() => presence.setReady(!me.ready)}
             >
-              {!wsConnected ? "Connecting…" : meEntry?.ready ? "Unready" : "Ready"}
+              {me.ready ? "Unready" : "Ready"}
             </button>
             <button disabled={!canStart} onClick={beginCountdown}>
               {countingDown ? "Starting…" : "Start Game"}

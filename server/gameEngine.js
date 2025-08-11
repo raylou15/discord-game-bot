@@ -71,12 +71,13 @@ function assignRoles(room) {
 }
 
 function publicPlayer(p, revealRole = false) {
-    return {
-        id: p.id,
-        name: p.name,
-        alive: p.alive,
-        role: revealRole ? p.role : null,
-    };
+  return {
+    id: p.id,
+    name: p.name,
+    avatar: p.avatar || null, // ✅ keep avatar
+    alive: p.alive,
+    role: revealRole ? p.role : null,
+  };
 }
 
 function checkWin(room) {
