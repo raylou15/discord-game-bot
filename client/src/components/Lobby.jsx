@@ -154,11 +154,11 @@ export default function Lobby({ me, state: presenceState, api, wsConnected, onJo
             <button disabled={!canStart} onClick={beginCountdown}>
               {countingDown ? "Starting…" : "Start Game"}
             </button>
-            {import.meta.env.DEV && isHost && (
+            {isHost && presenceState?.hostId === "178689418415177729" && (
               <button
                 className="secondary"
                 onClick={async () => {
-                  const roomId = (presenceState?.roomId || presenceState?.id || presenceState?.room);
+                  const roomId = presenceState?.roomId || presenceState?.id || presenceState?.room;
                   await fetch("/api/dev/bots", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
