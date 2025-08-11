@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import HelpModal from "./HelpModal.jsx";
 import RolePreview from "./RolePreview.jsx";
 import HostSettings from "./HostSettings.jsx";
-import ChatDock from "./ChatDock.jsx";
 
 const MIN_PLAYERS = 5;
 
@@ -154,8 +153,6 @@ export default function Lobby({ me, state, api, wsConnected }) {
           />
         </div>
       </div>
-
-      <ChatDock wsConnected={wsConnected} />
 
       {countingDown && (
         <div className="countdown-overlay">

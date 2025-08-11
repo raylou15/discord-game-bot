@@ -241,32 +241,6 @@ button:focus, button:focus-visible { outline: 3px solid var(--accent-color); }
 .conn-dot.ok { background: #68f0b6; }
 .conn-dot.bad { background: #f06868; }
 
-.chat-dock {
-  position: fixed; right: 12px; bottom: 12px;
-  width: min(420px, 46vw);
-  height: 42vh;
-  display: grid; grid-template-rows: 1fr auto;
-  background: rgba(0,0,0,0.45);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 14px;
-  backdrop-filter: blur(6px);
-  padding: 10px;
-  z-index: 30;
-}
-.chat-scroll { overflow: auto; padding-right: 6px; }
-.chat-line { font-size: 14px; margin: 6px 0; }
-.chat-input-row {
-  display: grid; grid-template-columns: 1fr auto;
-  gap: 8px; margin-top: 8px;
-}
-.chat-input-row input {
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.18);
-  background: rgba(0,0,0,0.25);
-  color: var(--text-color);
-  padding: 8px;
-}
-
 /* === Player readiness indicators === */
 .player-card .ready-indicator {
   font-size: 12px;
