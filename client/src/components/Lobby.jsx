@@ -7,11 +7,18 @@ import ChatDock from "./ChatDock.jsx";
 
 const MIN_PLAYERS = 5;
 
-function avatarUrl(p) {
+function avatarUrl(p, me) {
+  // Prefer avatar from player object
   if (p.avatar) {
     return `https://cdn.discordapp.com/avatars/${p.id}/${p.avatar}.png?size=64`;
   }
-  const idx = Number(p.discriminator) % 5;
+  // If this is me and my avatar is known
+  if (p.id === me?.id && me?.avatar) {
+    return `https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.png?size=64`;
+  }
+  // Default fallback avatar
+  const discrim = p.discriminator || me?.discriminator || "0";
+  const idx = Number(discrim) % 5;
   return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
 }
 

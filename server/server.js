@@ -73,6 +73,8 @@ function broadcast(roomId) {
     players: [...room.players.values()].map((p) => ({
       id: p.id,
       name: p.name,
+      avatar: p.avatar,
+      discriminator: p.discriminator,
       ready: !!p.ready,
       isHost: p.id === room.hostId,
     })),
@@ -103,6 +105,16 @@ wss.on("connection", (ws, request) => {
 
   if (!rooms.has(roomId)) rooms.set(roomId, { players: new Map(), started: false, hostId: null });
   const room = rooms.get(roomId);
+  const avatar = params.get("avatar") || null;
+  const discrim = params.get("discrim") || "0";
+
+  room.players.set(ws, {
+    id,
+    name,
+    avatar,
+    discriminator: discrim,
+    ready: false,
+  });
   room.players.set(ws, { id, name, ready: false });
 
   pickHost(room);
@@ -124,7 +136,7 @@ wss.on("connection", (ws, request) => {
           }
         }
       }
-    } catch {}
+    } catch { }
   });
 
   ws.on("close", () => {

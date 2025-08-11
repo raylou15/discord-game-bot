@@ -6,9 +6,10 @@ export function connectPresence({ sdk, me, onState, onConnection }) {
 
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const base = `${proto}://${location.host}`;
-  const url = `${base}/ws?roomId=${encodeURIComponent(roomId)}&id=${encodeURIComponent(
-    me.id
-  )}&name=${encodeURIComponent(me.global_name || me.username)}`;
+  const url = `${base}/ws?roomId=${encodeURIComponent(roomId)}&id=${encodeURIComponent(me.id)}`
+  + `&name=${encodeURIComponent(me.global_name || me.username)}`
+  + `&avatar=${encodeURIComponent(me.avatar || "")}`
+  + `&discrim=${encodeURIComponent(me.discriminator || "0")}`;
 
   let isOpen = false;
   let manualClose = false;
