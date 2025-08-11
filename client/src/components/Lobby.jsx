@@ -132,7 +132,11 @@ export default function Lobby({ me, state, api, wsConnected }) {
               onClick={() => api.setReady(!meEntry?.ready)}
               disabled={!wsConnected || state?.started || countingDown}
             >
-              {!wsConnected ? "Connecting…" : meEntry?.ready ? "Unready" : "Ready"}
+              {!wsConnected
+                ? "Connecting…"
+                : meEntry?.ready
+                  ? "Unready"
+                  : "Ready"}
             </button>
 
             <button disabled={!canStart} onClick={beginCountdown}>

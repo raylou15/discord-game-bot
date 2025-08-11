@@ -471,14 +471,69 @@ button:focus-visible {
 }
 
 /* === Loading screen === */
+/* === Loading screen === */
 .loader-ring {
   width: 64px;
   height: 64px;
   margin: 0 auto 12px;
   border-radius: 50%;
-  border: 6px solid rgba(255, 255, 255, 0.08);
+  border: 6px solid rgba(255,255,255,0.08);
   border-top-color: var(--accent-color);
   animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.tip-carousel { margin-top: 12px; }
+.tip-line { margin-top: 6px; font-size: 14px; opacity: 0.85; text-wrap: balance; }
+.tip-dotbar { display: flex; gap: 6px; justify-content: center; }
+.dot {
+  width: 6px; height: 6px; border-radius: 999px;
+  background: rgba(255,255,255,0.18);
+  transition: transform .25s, background-color .25s;
+}
+.dot.active {
+  transform: scale(1.4);
+  background: var(--accent-color);
+}
+
+/* === Layout alignment === */
+.main-grid { align-items: stretch; }
+.left-col, .right-col {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  min-height: 0;
+}
+.players-panel {
+  min-height: 180px;
+  max-height: 38vh;
+  display: flex;
+  flex-direction: column;
+}
+.players-panel .player-grid {
+  flex: 1;
+  overflow-y: auto;
+}
+.action-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+/* === Player readiness === */
+.ready-indicator {
+  font-size: 12px;
+  font-weight: 600;
+}
+.ready-indicator.ready { color: #68f0b6; }
+.ready-indicator.not-ready { color: #f06868; }
+.player-card.ready {
+  background: rgba(100, 255, 180, 0.08);
+}
+.player-card.not-ready {
+  background: rgba(255, 100, 120, 0.08);
 }
 
 @keyframes spin {
