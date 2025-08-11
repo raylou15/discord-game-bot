@@ -27,7 +27,7 @@ export async function initDiscord() {
     });
     console.log("[init] got code");
 
-    // --- token exchange ---
+    // --- token exchange (relative path) ---
     const resp = await fetch("/api/token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -1,30 +1,32 @@
+// server/server.js
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
-
-import path from "path";
 import { fileURLToPath } from "url";
+import path from "path";
 
+// ---- Load env from root folder ----
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const clientDist = path.resolve(__dirname, "../client/dist");
-
-app.use(express.static(clientDist));
-
-// Send index.html for any unknown route (SPA fallback)
-app.get("*", (req, res) => {
-  res.sendFile(path.join(clientDist, "index.html"));
-});
-
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const app = express();
 app.use(express.json());
 
-// ---- OAuth token exchange (keep your existing one if already working) ----
+// ---- Serve client build ----
+const clientDist = path.resolve(__dirname, "../client/dist");
+app.use(express.static(clientDist));
+
+// ---- OAuth token exchange ----
 app.post("/api/token", async (req, res) => {
   try {
+    if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
+      return res
+        .status(500)
+        .json({ error: "Missing DISCORD_CLIENT_ID or DISCORD_CLIENT_SECRET in .env" });
+    }
+
     const { code } = req.body;
     const params = new URLSearchParams({
       client_id: process.env.DISCORD_CLIENT_ID,
@@ -33,11 +35,13 @@ app.post("/api/token", async (req, res) => {
       code,
       redirect_uri: process.env.REDIRECT_URI || "http://localhost:5173",
     });
+
     const r = await fetch("https://discord.com/api/oauth2/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params,
     });
+
     const data = await r.json();
     if (!r.ok) return res.status(500).json({ error: data });
     res.json({ access_token: data.access_token });
@@ -46,13 +50,17 @@ app.post("/api/token", async (req, res) => {
   }
 });
 
+// ---- SPA fallback for React Router ----
+app.get("*", (req, res) => {
+  res.sendFile(path.join(clientDist, "index.html"));
+});
+
 // ---- HTTP -> WS upgrade ----
 const server = createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
-// In‑memory room state (wipe on process restart)
-const rooms = new Map();
-// roomId -> { players: Map<socket, player>, started: bool, hostId: string }
+// In-memory room state
+const rooms = new Map(); // roomId -> { players: Map<socket, player>, started: bool, hostId: string }
 
 function broadcast(roomId) {
   const room = rooms.get(roomId);
@@ -75,8 +83,7 @@ function broadcast(roomId) {
 }
 
 function pickHost(room) {
-  // First connected becomes host, or keep existing
-  if (room.hostId && [...room.players.values()].some(p => p.id === room.hostId)) {
+  if (room.hostId && [...room.players.values()].some((p) => p.id === room.hostId)) {
     return room.hostId;
   }
   const first = [...room.players.values()][0];
@@ -84,7 +91,6 @@ function pickHost(room) {
 }
 
 wss.on("connection", (ws, request) => {
-  // Expect ?roomId=...&id=...&name=...
   const params = new URLSearchParams(request.url.split("?")[1] || "");
   const roomId = params.get("roomId");
   const id = params.get("id");
@@ -110,7 +116,6 @@ wss.on("connection", (ws, request) => {
         if (p) p.ready = !!msg.ready;
         broadcast(roomId);
       } else if (msg.type === "start") {
-        // Only host can start, and only when all ready
         if (room.hostId === id) {
           const allReady = [...room.players.values()].every((p) => p.ready);
           if (allReady) {
@@ -119,7 +124,7 @@ wss.on("connection", (ws, request) => {
           }
         }
       }
-    } catch { }
+    } catch {}
   });
 
   ws.on("close", () => {
@@ -135,7 +140,6 @@ wss.on("connection", (ws, request) => {
   });
 });
 
-// Upgrade handler for /ws
 server.on("upgrade", (req, socket, head) => {
   if (req.url.startsWith("/ws")) {
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
@@ -146,7 +150,3 @@ server.on("upgrade", (req, socket, head) => {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => console.log("Server running on :" + PORT));
-
-if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
-  return res.status(500).json({ error: "Missing DISCORD_CLIENT_ID or DISCORD_CLIENT_SECRET" });
-}
