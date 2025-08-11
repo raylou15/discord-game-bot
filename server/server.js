@@ -4,6 +4,19 @@ import dotenv from "dotenv";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const clientDist = path.resolve(__dirname, "../client/dist");
+
+app.use(express.static(clientDist));
+
+// Send index.html for any unknown route (SPA fallback)
+app.get("*", (req, res) => {
+  res.sendFile(path.join(clientDist, "index.html"));
+});
+
 dotenv.config();
 
 const app = express();
