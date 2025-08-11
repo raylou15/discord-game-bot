@@ -1,25 +1,23 @@
-// src/components/Lobby.jsx
-export default function Lobby({ me, onStart, players = [] }) {
+export default function Lobby({ me, state, api }) {
+  const players = state?.players || [];
+  const meEntry = players.find((p) => p.id === me?.id);
+  const isHost = state?.hostId === me?.id;
+  const everyoneReady = players.length > 0 && players.every((p) => p.ready);
+  const canStart = isHost && everyoneReady; // add min players rule if you want
+
   return (
     <div>
-      {/* Header panel */}
       <div className="panel" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <div
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: 10,
-            background: "rgba(255,255,255,0.08)",
-            flexShrink: 0,
-          }}
-        />
+        <div style={{ width: 48, height: 48, borderRadius: 10, background: "rgba(255,255,255,0.08)" }} />
         <div>
           <h2>Werewolf Lobby</h2>
-          <p>Signed in as <strong>{me?.global_name ?? me?.username ?? "…"}</strong></p>
+          <p>
+            Signed in as <strong>{me?.global_name ?? me?.username ?? "…"}</strong>
+            {isHost ? " • Host" : ""}
+          </p>
         </div>
       </div>
 
-      {/* Player list */}
       <div className="panel">
         <h3>Players in Room</h3>
         {players.length === 0 ? (
@@ -28,21 +26,22 @@ export default function Lobby({ me, onStart, players = [] }) {
           <div className="player-grid">
             {players.map((p) => (
               <div key={p.id} className="player-card">
-                {p.name}
+                <div style={{ fontWeight: 700 }}>{p.name}</div>
+                <div style={{ opacity: 0.8, fontSize: 13 }}>
+                  {p.id === state?.hostId ? "Host" : p.ready ? "Ready" : "Not ready"}
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Footer buttons */}
       <div style={{ display: "flex", gap: "12px" }}>
-        <button onClick={onStart}>Start Game</button>
-        <button
-          onClick={() => navigator.clipboard.writeText(window.location.href)}
-          style={{ backgroundColor: "#333" }}
-        >
-          Copy Invite
+        <button onClick={() => api.setReady(!meEntry?.ready)}>
+          {meEntry?.ready ? "Unready" : "Ready"}
+        </button>
+        <button disabled={!canStart} onClick={() => api.startGame()}>
+          Start Game
         </button>
       </div>
     </div>

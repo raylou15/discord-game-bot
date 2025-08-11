@@ -1,28 +1,41 @@
-// src/App.jsx
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import LoadingGate from "./components/LoadingGate.jsx";
 import Lobby from "./components/Lobby.jsx";
 import { initDiscord } from "./sdk/discord.js";
+import { connectPresence } from "./sdk/presence.js";
 
 export default function App() {
-  const [state, setState] = useState({ phase: "boot", me: undefined });
+  const [phase, setPhase] = useState("boot");
+  const [me, setMe] = useState(null);
+  const [wsApi, setWsApi] = useState(null);
+  const [roomState, setRoomState] = useState(null);
 
-  // Loader for LoadingGate
   const boot = useCallback(async () => {
-    const { user } = await initDiscord();
-    return user;
+    const { sdk, user } = await initDiscord();
+    return { sdk, user };
   }, []);
 
-  const onBooted = useCallback((me) => {
-    setState({ phase: "lobby", me });
+  const onBooted = useCallback(({ sdk, user }) => {
+    setMe(user);
+    // Connect presence
+    const api = connectPresence({
+      sdk,
+      me: user,
+      onState: (state) => {
+        setRoomState(state);
+        if (state.started) setPhase("game");
+      },
+    });
+    setWsApi(api);
+    setPhase("lobby");
   }, []);
 
-  const onStart = useCallback(() => {
-    setState((s) => ({ phase: "game", me: s.me }));
-  }, []);
+  useEffect(() => {
+    return () => wsApi?.close?.();
+  }, [wsApi]);
 
   const content = useMemo(() => {
-    switch (state.phase) {
+    switch (phase) {
       case "boot":
         return (
           <LoadingGate
@@ -32,28 +45,24 @@ export default function App() {
             subtitle="Please wait while we prepare the lobby"
           />
         );
-
       case "lobby":
-        return <Lobby me={state.me} onStart={onStart} players={[]} />;
-
+        return <Lobby me={me} state={roomState} api={wsApi} />;
       case "game":
         return (
           <div className="panel" style={{ textAlign: "center" }}>
             <h2>Game Scene</h2>
-            <p style={{ opacity: 0.8 }}>This is where the game will happen.</p>
-            <button
-              style={{ marginTop: "16px" }}
-              onClick={() => setState({ phase: "lobby", me: state.me })}
-            >
-              Back to Lobby
+            <p style={{ opacity: 0.8 }}>
+              Lobby locked. You can now implement role assignment and night/day cycles.
+            </p>
+            <button style={{ marginTop: 16 }} onClick={() => setPhase("lobby")}>
+              (Dev) Back to Lobby
             </button>
           </div>
         );
-
       default:
         return null;
     }
-  }, [state, boot, onBooted, onStart]);
+  }, [phase, me, roomState, wsApi, boot, onBooted]);
 
   return <div>{content}</div>;
 }
