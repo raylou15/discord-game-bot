@@ -7,18 +7,11 @@ import ChatDock from "./ChatDock.jsx";
 
 const MIN_PLAYERS = 5;
 
-function avatarUrl(p, me) {
-  // Prefer avatar from player object
+function avatarUrl(p) {
   if (p.avatar) {
     return `https://cdn.discordapp.com/avatars/${p.id}/${p.avatar}.png?size=64`;
   }
-  // If this is me and my avatar is known
-  if (p.id === me?.id && me?.avatar) {
-    return `https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.png?size=64`;
-  }
-  // Default fallback avatar
-  const discrim = p.discriminator || me?.discriminator || "0";
-  const idx = Number(discrim) % 5;
+  const idx = Number(p.discriminator || 0) % 5;
   return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
 }
 
@@ -103,12 +96,12 @@ export default function Lobby({ me, state, api, wsConnected }) {
             </div>
           </div>
 
-          <div className="panel players-panel">
+          <div className="panel players-panel scroll-inner">
             <h3>Players</h3>
             {players.length === 0 ? (
               <p className="muted">Waiting for others to join…</p>
             ) : (
-              <div className="player-grid scroll-inner">
+              <div className="player-grid">
                 {players.map((p) => (
                   <div key={p.id} className="player-card">
                     <img
@@ -119,12 +112,11 @@ export default function Lobby({ me, state, api, wsConnected }) {
                     />
                     <div className="player-info">
                       <strong>{p.name}</strong>
-                      <div className="muted small">
-                        {p.id === state?.hostId
-                          ? "Host"
-                          : p.ready
-                          ? "Ready"
-                          : "Not ready"}
+                      <div
+                        className={`ready-indicator ${p.ready ? "ready" : "not-ready"
+                          }`}
+                      >
+                        {p.ready ? "✅ Ready" : "❌ Not ready"}
                       </div>
                     </div>
                   </div>
@@ -133,7 +125,7 @@ export default function Lobby({ me, state, api, wsConnected }) {
             )}
           </div>
 
-          {/* Actions */}
+          {/* Fixed button bar */}
           <div className="panel action-bar">
             <button
               onClick={() => api.setReady(!meEntry?.ready)}
@@ -142,8 +134,8 @@ export default function Lobby({ me, state, api, wsConnected }) {
               {!wsConnected
                 ? "Connecting…"
                 : meEntry?.ready
-                ? "Unready"
-                : "Ready"}
+                  ? "Unready"
+                  : "Ready"}
             </button>
             <button disabled={!canStart} onClick={beginCountdown}>
               {countingDown ? "Starting…" : "Start Game"}
@@ -163,10 +155,8 @@ export default function Lobby({ me, state, api, wsConnected }) {
         </div>
       </div>
 
-      {/* HUD */}
       <ChatDock wsConnected={wsConnected} />
 
-      {/* Countdown */}
       {countingDown && (
         <div className="countdown-overlay">
           <div className="countdown-card">

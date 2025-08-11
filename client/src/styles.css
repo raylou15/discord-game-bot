@@ -266,3 +266,17 @@ button:focus, button:focus-visible { outline: 3px solid var(--accent-color); }
   color: var(--text-color);
   padding: 8px;
 }
+
+/* === Player readiness indicators === */
+.player-card .ready-indicator {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.player-card.ready .ready-indicator {
+  color: #68f0b6; /* green for ready */
+}
+
+.player-card.not-ready .ready-indicator {
+  color: #f06868; /* red for not ready */
+}

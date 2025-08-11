@@ -103,19 +103,12 @@ wss.on("connection", (ws, request) => {
     return;
   }
 
-  if (!rooms.has(roomId)) rooms.set(roomId, { players: new Map(), started: false, hostId: null });
-  const room = rooms.get(roomId);
   const avatar = params.get("avatar") || null;
   const discrim = params.get("discrim") || "0";
 
-  room.players.set(ws, {
-    id,
-    name,
-    avatar,
-    discriminator: discrim,
-    ready: false,
-  });
-  room.players.set(ws, { id, name, ready: false });
+  if (!rooms.has(roomId)) rooms.set(roomId, { players: new Map(), started: false, hostId: null });
+  const room = rooms.get(roomId);
+  room.players.set(ws, { id, name, avatar, discriminator: discrim, ready: false });
 
   pickHost(room);
   broadcast(roomId);
