@@ -4,7 +4,6 @@ import HelpModal from "./HelpModal.jsx";
 import RolePreview from "./RolePreview.jsx";
 import HostSettings from "./HostSettings.jsx";
 import ChatDock from "./ChatDock.jsx";
-const [chatOpen, setChatOpen] = useState(false);
 
 const MIN_PLAYERS = 5;
 
@@ -138,13 +137,8 @@ export default function Lobby({ me, state, api, wsConnected }) {
                   ? "Unready"
                   : "Ready"}
             </button>
-
             <button disabled={!canStart} onClick={beginCountdown}>
               {countingDown ? "Starting…" : "Start Game"}
-            </button>
-
-            <button className="secondary" onClick={() => setChatOpen((v) => !v)}>
-              {chatOpen ? "Hide Chat" : "Show Chat"}
             </button>
           </div>
         </div>
@@ -161,7 +155,7 @@ export default function Lobby({ me, state, api, wsConnected }) {
         </div>
       </div>
 
-      <ChatDock open={chatOpen} onOpenChange={setChatOpen} wsConnected={wsConnected} messages={roomState?.chat || []} />
+      <ChatDock wsConnected={wsConnected} />
 
       {countingDown && (
         <div className="countdown-overlay">

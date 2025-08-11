@@ -10,9 +10,7 @@ export function connectPresence({ sdk, me, onState, onConnection }) {
     `&id=${encodeURIComponent(me.id)}` +
     `&name=${encodeURIComponent(me.global_name || me.username)}` +
     `&avatar=${encodeURIComponent(me.avatar || "")}` +
-    `&discrim=${encodeURIComponent(me.discriminator || "0")}` +
-    `&guildId=${encodeURIComponent(sdk.guildId || "")}` +
-    `&channelId=${encodeURIComponent(sdk.channelId || "")}`;
+    `&discrim=${encodeURIComponent(me.discriminator || "0")}`;
 
   let isOpen = false;
   let manualClose = false;
@@ -31,9 +29,9 @@ export function connectPresence({ sdk, me, onState, onConnection }) {
     ws.onopen = () => { isOpen = true; onConnection?.(true); flush(); };
     ws.onmessage = (ev) => {
       try { const msg = JSON.parse(ev.data); if (msg.type === "state") onState(msg); }
-      catch { }
+      catch {}
     };
-    ws.onerror = () => { };
+    ws.onerror = () => {};
     ws.onclose = () => {
       isOpen = false; onConnection?.(false);
       if (!manualClose) { clearTimeout(reconnectTimer); reconnectTimer = setTimeout(connect, 2000); }
