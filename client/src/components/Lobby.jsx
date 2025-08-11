@@ -1,20 +1,24 @@
 // src/components/Lobby.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import HostSettings from "./HostSettings.jsx";
+import HelpModal from "./HelpModal.jsx";
 import RolePreview from "./RolePreview.jsx";
+import HostSettings from "./HostSettings.jsx";
+import ChatDock from "./ChatDock.jsx";
 
 const MIN_PLAYERS = 5;
 
 export default function Lobby({ me, state, api, wsConnected }) {
-  const [countingDown, setCountingDown] = useState(false);
-  const [count, setCount] = useState(3);
-  const cdTimer = useRef(null);
-
   const players = state?.players || [];
   const meEntry = players.find((p) => p.id === me?.id);
   const isHost = state?.hostId === me?.id;
   const everyoneReady = players.length > 0 && players.every((p) => p.ready);
   const meetsMinPlayers = players.length >= MIN_PLAYERS;
+
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [countingDown, setCountingDown] = useState(false);
+  const [count, setCount] = useState(3);
+  const cdTimer = useRef(null);
+
   const canStart = isHost && everyoneReady && meetsMinPlayers && wsConnected && !state?.started && !countingDown;
 
   const statusLine = useMemo(() => {
@@ -31,11 +35,9 @@ export default function Lobby({ me, state, api, wsConnected }) {
     setCount(3);
   }
 
-  // manage the 3..2..1.. Start flow
   useEffect(() => {
     if (!countingDown) return;
     if (count <= 0) {
-      // fire start, lock UI
       api.startGame?.();
       setCountingDown(false);
       return;
@@ -46,95 +48,81 @@ export default function Lobby({ me, state, api, wsConnected }) {
   }, [countingDown, count, api]);
 
   return (
-    <div>
-      {/* Header */}
-      <div className="panel lobby-header">
-        <div className="avatar-placeholder" />
-        <div className="lobby-header-main">
-          <h2>Werewolf Lobby</h2>
-          <p className="muted">{statusLine}</p>
-        </div>
-        <div className="lobby-header-actions">
-          {/* Reserve space for future Help button if you add it here */}
+    <div className="viewport">
+      {/* Top bar */}
+      <div className="topbar">
+        <div className="brand">Werewolf</div>
+        <div className="topbar-center muted">{statusLine}</div>
+        <div className="topbar-actions">
+          <button className="secondary" onClick={() => setHelpOpen(true)}>Help</button>
         </div>
       </div>
 
-      {/* Start requirements */}
-      <div className="panel">
-        <div className="reqs">
-          <span className={`req-chip ${meetsMinPlayers ? "ok" : "warn"}`}>
-            {meetsMinPlayers ? "✓" : "•"} Min Players: {MIN_PLAYERS}
-          </span>
-          <span className={`req-chip ${everyoneReady ? "ok" : "warn"}`}>
-            {everyoneReady ? "✓" : "•"} Everyone Ready
-          </span>
-          <span className={`req-chip ${wsConnected ? "ok" : "warn"}`}>
-            {wsConnected ? "✓" : "•"} Server Connection
-          </span>
-          <span className={`req-chip ${isHost ? "ok" : "warn"}`}>
-            {isHost ? "✓" : "•"} Host Present
-          </span>
-        </div>
-      </div>
+      {/* Main grid */}
+      <div className="main-grid">
+        <div className="panel">
+          <h3>Lobby</h3>
+          <p className="muted small" style={{ marginBottom: 8 }}>
+            Signed in as <strong>{me?.global_name ?? me?.username ?? "…"}</strong>{isHost ? " • Host" : ""}
+          </p>
 
-      {/* Role preview */}
-      <RolePreview playerCount={players.length} settings={state?.settings} />
-
-      {/* Host settings (view-only for non-hosts) */}
-      <HostSettings
-        isHost={isHost}
-        api={api}
-        roomState={state}
-        playerCount={players.length}
-      />
-
-      {/* Players */}
-      <div className="panel">
-        <h3>Players in Room</h3>
-        {players.length === 0 ? (
-          <p className="muted">Waiting for others to join…</p>
-        ) : (
-          <div className="player-grid">
-            {players.map((p) => (
-              <div key={p.id} className="player-card">
-                <div style={{ fontWeight: 700, marginBottom: 4 }}>{p.name}</div>
-                <div className="muted small">
-                  {p.id === state?.hostId ? "Host" : p.ready ? "Ready" : "Not ready"}
-                </div>
-              </div>
-            ))}
+          <div className="reqs">
+            <span className={`req-chip ${meetsMinPlayers ? "ok" : "warn"}`}>{meetsMinPlayers ? "✓" : "•"} Min: {MIN_PLAYERS}</span>
+            <span className={`req-chip ${everyoneReady ? "ok" : "warn"}`}>{everyoneReady ? "✓" : "•"} Everyone Ready</span>
+            <span className={`req-chip ${wsConnected ? "ok" : "warn"}`}>{wsConnected ? "✓" : "•"} Server Connection</span>
+            <span className={`req-chip ${isHost ? "ok" : "warn"}`}>{isHost ? "✓" : "•"} Host Present</span>
           </div>
-        )}
+        </div>
+
+        <RolePreview playerCount={players.length} settings={state?.settings} />
+
+        <div className="panel">
+          <h3>Players</h3>
+          {players.length === 0 ? (
+            <p className="muted">Waiting for others to join…</p>
+          ) : (
+            <div className="player-grid">
+              {players.map((p) => (
+                <div key={p.id} className="player-card">
+                  <div style={{ fontWeight: 700, marginBottom: 4 }}>{p.name}</div>
+                  <div className="muted small">{p.id === state?.hostId ? "Host" : p.ready ? "Ready" : "Not ready"}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <HostSettings
+          isHost={isHost}
+          api={api}
+          roomState={state}
+          playerCount={players.length}
+        />
+
+        <div className="actions-row">
+          <button onClick={() => api.setReady(!meEntry?.ready)} disabled={!wsConnected || state?.started || countingDown}>
+            {!wsConnected ? "Connecting…" : meEntry?.ready ? "Unready" : "Ready"}
+          </button>
+          <button disabled={!canStart} onClick={beginCountdown}>
+            {countingDown ? "Starting…" : "Start Game"}
+          </button>
+        </div>
       </div>
 
-      {/* Actions */}
-      <div className="actions-row">
-        <button onClick={() => api.setReady(!meEntry?.ready)} disabled={!wsConnected || state?.started || countingDown}>
-          {!wsConnected ? "Connecting…" : meEntry?.ready ? "Unready" : "Ready"}
-        </button>
+      {/* Floating HUD + Chat */}
+      <ChatDock wsConnected={wsConnected} />
 
-        <button
-          disabled={!canStart}
-          title={
-            canStart
-              ? "Start the game"
-              : "You must be the host, have 5+ players, everyone ready, and be connected."
-          }
-          onClick={beginCountdown}
-        >
-          {countingDown ? `Starting…` : "Start Game"}
-        </button>
-      </div>
-
-      {/* Countdown overlay */}
+      {/* Countdown */}
       {countingDown && (
         <div className="countdown-overlay">
           <div className="countdown-card">
-            <div className="count-num" aria-live="assertive">{count}</div>
+            <div className="count-num">{count}</div>
             <div className="muted">Locking lobby…</div>
           </div>
         </div>
       )}
+
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }

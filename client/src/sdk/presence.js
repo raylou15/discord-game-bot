@@ -21,23 +21,20 @@ export function connectPresence({ sdk, me, onState, onConnection }) {
   function safeSend(obj) {
     const str = JSON.stringify(obj);
     if (isOpen && ws?.readyState === WebSocket.OPEN) ws.send(str);
-    else { log("queue", obj); pending.push(str); }
+    else { pending.push(str); }
   }
 
   function connect() {
     log("connecting to", url);
     ws = new WebSocket(url);
 
-    ws.onopen = () => { log("connected"); isOpen = true; onConnection?.(true); flush(); };
+    ws.onopen = () => { isOpen = true; onConnection?.(true); flush(); };
     ws.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(ev.data);
-        if (msg.type === "state") onState(msg);
-      } catch (e) { log("bad message", e); }
+      try { const msg = JSON.parse(ev.data); if (msg.type === "state") onState(msg); }
+      catch {}
     };
-    ws.onerror = (err) => { log("error", err); };
-    ws.onclose = (ev) => {
-      log("closed", ev.code, ev.reason || "");
+    ws.onerror = () => {};
+    ws.onclose = () => {
       isOpen = false; onConnection?.(false);
       if (!manualClose) { clearTimeout(reconnectTimer); reconnectTimer = setTimeout(connect, 2000); }
     };

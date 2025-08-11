@@ -16,51 +16,50 @@ export default function HelpModal({ open, onClose }) {
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>How to Play — Werewolf</h3>
-          <button className="icon-btn" onClick={onClose} aria-label="Close help">✕</button>
+          <button className="icon-btn" onClick={onClose}>✕</button>
         </div>
 
         <div className="modal-body">
           <section>
             <h4>Goal</h4>
-            <p>
-              Villagers win by identifying and eliminating all Werewolves.
-              Werewolves win by reducing the village to parity (wolves ≥ villagers).
-            </p>
+            <p>Villagers eliminate all Werewolves. Werewolves reach parity (wolves ≥ villagers).</p>
           </section>
 
           <section>
             <h4>Phases</h4>
             <ul className="bullets">
-              <li><strong>Night:</strong> Secret actions resolve. Werewolves choose a target. Special roles (Seer/Doctor/Hunter) act if present.</li>
-              <li><strong>Day:</strong> Players discuss and vote. The player with the most votes is eliminated (ties can be no-elimination or a runoff, depending on settings).</li>
+              <li><strong>Night:</strong> Wolves choose a victim; Seer peeks; Doctor protects; Hunter has no night action.</li>
+              <li><strong>Day:</strong> Discuss and vote. Tie rule is set by the Host (no‑elim / random / runoff).</li>
             </ul>
           </section>
 
           <section>
-            <h4>Common Roles</h4>
+            <h4>Roles</h4>
             <ul className="roles">
-              <li><span className="role-chip evil">Werewolf</span> – Eliminates 1 player each night.</li>
-              <li><span className="role-chip good">Villager</span> – No night action; uses deduction and voting.</li>
-              <li><span className="role-chip good">Seer</span> – Learns if a player is 🐺 or not each night.</li>
-              <li><span className="role-chip good">Doctor</span> – Protects a player from elimination each night.</li>
-              <li><span className="role-chip good">Hunter</span> – On elimination, takes someone down with them.</li>
+              <li><span className="role-chip evil">Werewolf</span> – Eliminates 1 player each night. Wins at parity.</li>
+              <li><span className="role-chip good">Villager</span> – No night action. Wins by voting out wolves.</li>
+              <li><span className="role-chip good">Seer</span> – Learns if a player is wolf or not each night. (6+ players)</li>
+              <li><span className="role-chip good">Doctor</span> – Protects one player from the night kill. (7+ players)</li>
+              <li><span className="role-chip good">Hunter</span> – On elimination, chooses someone to eliminate. (9+ players)</li>
+              <li><span className="role-chip evil">Extra Wolf</span> – Additional wolf at high player counts. (10+ players)</li>
             </ul>
           </section>
 
           <section>
-            <h4>Setup & Start</h4>
+            <h4>Setup</h4>
             <ul className="bullets">
-              <li>Minimum 5 players recommended. Roles unlock progressively as the lobby grows.</li>
-              <li>Everyone must click <em>Ready</em>. The host can then press <em>Start Game</em>.</li>
+              <li>Minimum 5 players. Roles unlock automatically as the lobby grows.</li>
+              <li>The Host can toggle optional roles (once unlocked), set tie rule, and a day timer.</li>
+              <li>Everyone clicks <em>Ready</em> → Host hits <em>Start</em> → 3‑second countdown → Game begins.</li>
             </ul>
           </section>
 
           <section>
             <h4>Tips</h4>
             <ul className="bullets">
-              <li>As Villagers: look for contradictions, voting patterns, and night outcomes.</li>
-              <li>As Wolves: blend in, sow doubt, and avoid obvious collusion.</li>
-              <li>Silence can be telling. So can “too-perfect” arguments.</li>
+              <li>Vote history matters. Wolves often avoid leading wagons.</li>
+              <li>Seer claims should be timed—too early paints a target.</li>
+              <li>Doctors: predicting the night kill is the name of the game.</li>
             </ul>
           </section>
         </div>

@@ -1,45 +1,38 @@
 // src/components/RolePreview.jsx
-
-function unlockedByCount(players) {
-  // baseline: 1 wolf at 5+; extra wolf unlock at 10+
-  const base = ["Werewolf", "Villager"];
-  const add = [];
-  if (players >= 6) add.push("Seer");
-  if (players >= 7) add.push("Doctor");
-  if (players >= 9) add.push("Hunter");
-  return { base, add, extraWolfUnlocked: players >= 10 };
-}
+const ROLE_INFO = [
+  { name: "Werewolf", kind: "evil", unlock: 5, always: true,
+    blurb: "Eliminates one player each night. Wins at parity." },
+  { name: "Villager", kind: "good", unlock: 5, always: true,
+    blurb: "No night power. Use discussion and votes to find wolves." },
+  { name: "Seer", kind: "good", unlock: 6, key: "seer",
+    blurb: "Peek one player each night to learn wolf / not‑wolf." },
+  { name: "Doctor", kind: "good", unlock: 7, key: "doctor",
+    blurb: "Protect one player from the night kill." },
+  { name: "Hunter", kind: "good", unlock: 9, key: "hunter",
+    blurb: "On elimination, immediately choose someone to eliminate." },
+  { name: "Extra Werewolf", kind: "evil", unlock: 10, key: "extraWolf",
+    blurb: "Adds another wolf for larger lobbies." },
+];
 
 export default function RolePreview({ playerCount, settings }) {
-  const u = unlockedByCount(playerCount);
-  const enabled = {
-    Seer: settings?.roles?.seer && playerCount >= 6,
-    Doctor: settings?.roles?.doctor && playerCount >= 7,
-    Hunter: settings?.roles?.hunter && playerCount >= 9,
-    ExtraWolf: settings?.roles?.extraWolf && u.extraWolfUnlocked,
-  };
-
-  const chips = [
-    { name: "Werewolf", kind: "evil", on: true },
-    { name: "Villager", kind: "good", on: true },
-    { name: "Seer", kind: "good", on: enabled.Seer },
-    { name: "Doctor", kind: "good", on: enabled.Doctor },
-    { name: "Hunter", kind: "good", on: enabled.Hunter },
-    { name: "Extra Werewolf", kind: "evil", on: enabled.ExtraWolf },
-  ];
-
   return (
     <div className="panel">
       <h3>Roles This Game</h3>
-      <p className="muted small" style={{ marginBottom: 8 }}>
-        Roles unlock as more players join. Host can toggle optional roles once unlocked.
-      </p>
-      <div className="role-chip-row">
-        {chips.map((c) => (
-          <span key={c.name} className={`role-chip ${c.kind} ${c.on ? "on" : "off"}`} title={c.on ? "Enabled" : "Locked/Off"}>
-            {c.name}
-          </span>
-        ))}
+      <div className="role-card-grid">
+        {ROLE_INFO.map((r) => {
+          const unlocked = playerCount >= r.unlock;
+          const enabled = r.always || (!!settings?.roles?.[r.key] && unlocked);
+          return (
+            <div key={r.name} className={`role-card ${r.kind} ${enabled ? "on" : "off"}`} title={!unlocked ? `Unlocks at ${r.unlock}+ players` : ""}>
+              <div className="role-card-header">
+                <span className="role-name">{r.name}</span>
+                <span className="role-badge">{r.kind === "evil" ? "Evil" : "Good"}</span>
+              </div>
+              <div className="role-card-blurb">{r.blurb}</div>
+              <div className="role-card-foot">{r.always ? "Always in" : unlocked ? (enabled ? "Enabled" : "Disabled") : `Unlocks at ${r.unlock}+`}</div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
