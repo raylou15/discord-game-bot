@@ -2,28 +2,54 @@
 let ws = null;
 
 export function connectPresence({ sdk, me, onState, onConnection }) {
+  // One room per voice channel context
   const roomId = `${sdk.guildId || "g"}:${sdk.channelId || "c"}`;
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  const url = `${proto}://${location.host}/ws?roomId=${encodeURIComponent(
-    roomId
-  )}&id=${encodeURIComponent(me.id)}&name=${encodeURIComponent(
-    me.global_name || me.username
-  )}`;
+
+  // Always connect to YOUR server host (Discord’s proxy host won’t accept /ws)
+  const serverHost =
+    import.meta.env.VITE_SERVER_HOST ||
+    (typeof window !== "undefined" && window.SERVER_HOST) ||
+    "operationpolitics.duckdns.org";
+
+  const proto = "wss"; // you’re on HTTPS behind Caddy
+  const base = `${proto}://${serverHost}`;
+  const url = `${base}/ws?roomId=${encodeURIComponent(roomId)}&id=${encodeURIComponent(
+    me.id
+  )}&name=${encodeURIComponent(me.global_name || me.username)}`;
 
   let isOpen = false;
-  let pendingMessages = [];
+  let manualClose = false;
+  let pending = [];
+  let reconnectTimer = null;
+
+  function log(...args) {
+    console.log("[WS]", ...args);
+  }
+
+  function flush() {
+    for (const msg of pending) ws?.send(msg);
+    pending = [];
+  }
+
+  function safeSend(obj) {
+    const str = JSON.stringify(obj);
+    if (isOpen && ws?.readyState === WebSocket.OPEN) {
+      ws.send(str);
+    } else {
+      log("queue", obj);
+      pending.push(str);
+    }
+  }
 
   function connect() {
-    console.log("[WS] Connecting to", url);
+    log("connecting to", url);
     ws = new WebSocket(url);
 
     ws.onopen = () => {
-      console.log("[WS] Connected");
+      log("connected");
       isOpen = true;
       onConnection?.(true);
-      // Flush queued messages
-      for (const msg of pendingMessages) ws.send(msg);
-      pendingMessages = [];
+      flush();
     };
 
     ws.onmessage = (ev) => {
@@ -31,35 +57,27 @@ export function connectPresence({ sdk, me, onState, onConnection }) {
         const msg = JSON.parse(ev.data);
         if (msg.type === "state") onState(msg);
       } catch (e) {
-        console.warn("[WS] Bad message", e);
+        log("bad message", e);
       }
     };
 
-    ws.onclose = (ev) => {
-      console.warn("[WS] Disconnected", ev.code, ev.reason);
-      isOpen = false;
-      onConnection?.(false);
-      // Auto-reconnect after 2s unless explicitly closed
-      setTimeout(connect, 2000);
+    ws.onerror = (err) => {
+      log("error", err);
+      // Let onclose handle reconnect
     };
 
-    ws.onerror = (err) => {
-      console.error("[WS] Error", err);
-      ws.close();
+    ws.onclose = (ev) => {
+      log("closed", ev.code, ev.reason || "");
+      isOpen = false;
+      onConnection?.(false);
+      if (!manualClose) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connect, 2000); // try again
+      }
     };
   }
 
   connect();
-
-  function safeSend(data) {
-    const str = JSON.stringify(data);
-    if (isOpen && ws?.readyState === WebSocket.OPEN) {
-      ws.send(str);
-    } else {
-      console.log("[WS] Queuing message until open", data);
-      pendingMessages.push(str);
-    }
-  }
 
   return {
     setReady(ready) {
@@ -69,7 +87,8 @@ export function connectPresence({ sdk, me, onState, onConnection }) {
       safeSend({ type: "start" });
     },
     close() {
-      console.log("[WS] Closing manually");
+      manualClose = true;
+      clearTimeout(reconnectTimer);
       ws?.close();
     },
   };

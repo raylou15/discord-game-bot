@@ -47,7 +47,14 @@ export default function App() {
           />
         );
       case "lobby":
-        return <Lobby me={me} state={roomState} api={wsApi} wsConnected={wsConnected} />;
+        return (
+          <Lobby
+            me={me}
+            state={roomState}
+            api={wsApi}
+            wsConnected={wsConnected}
+          />
+        );
       case "game":
         return (
           <div className="panel" style={{ textAlign: "center" }}>
