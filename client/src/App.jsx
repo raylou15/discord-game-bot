@@ -79,8 +79,8 @@ export default function App() {
         return (
           <Lobby
             me={me}
-            state={presenceState}
-            presence={presence} // ✅ now in scope
+            state={roomState}
+            presence={wsApi}
             wsConnected={wsConnected}
             onJoin={join}
           />
