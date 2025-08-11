@@ -6,6 +6,14 @@ import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { fileURLToPath } from "url";
 import path from "path";
+import { Client, GatewayIntentBits, Partials } from "discord.js";
+
+const bot = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  partials: [Partials.Channel],
+});
+
+bot.login(process.env.DISCORD_BOT_TOKEN).catch((e) => console.error("Bot login failed:", e));
 
 // ---- Load env from root folder ----
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -60,7 +68,7 @@ const server = createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
 // In-memory room state
-const rooms = new Map(); // roomId -> { players: Map<socket, player>, started: bool, hostId: string }
+const rooms = new Map(); // roomId -> { players: Map, started, hostId, guildId, channelId, chat: [] }
 
 function broadcast(roomId) {
   const room = rooms.get(roomId);
@@ -71,13 +79,10 @@ function broadcast(roomId) {
     started: room.started || false,
     hostId: room.hostId || null,
     players: [...room.players.values()].map((p) => ({
-      id: p.id,
-      name: p.name,
-      avatar: p.avatar,
-      discriminator: p.discriminator,
-      ready: !!p.ready,
-      isHost: p.id === room.hostId,
+      id: p.id, name: p.name, avatar: p.avatar, discriminator: p.discriminator,
+      ready: !!p.ready, isHost: p.id === room.hostId,
     })),
+    chat: room.chat?.slice(-100) || [], // latest 100 msgs
   };
   for (const sock of room.players.keys()) {
     if (sock.readyState === 1) sock.send(JSON.stringify(payload));
@@ -103,40 +108,37 @@ wss.on("connection", (ws, request) => {
     return;
   }
 
-  if (!rooms.has(roomId)) rooms.set(roomId, { players: new Map(), started: false, hostId: null });
-  const room = rooms.get(roomId);
   const avatar = params.get("avatar") || null;
   const discrim = params.get("discrim") || "0";
 
-  room.players.set(ws, {
-    id,
-    name,
-    avatar,
-    discriminator: discrim,
-    ready: false,
-  });
-  room.players.set(ws, { id, name, ready: false });
+  const guildId = params.get("guildId") || null;
+  const channelId = params.get("channelId") || null;
+
+  if (!rooms.has(roomId)) rooms.set(roomId, { players: new Map(), started: false, hostId: null, guildId, channelId, chat: [] });
+  const room = rooms.get(roomId);
+  room.guildId = guildId;
+  room.channelId = channelId;
+  room.players.set(ws, { id, name, avatar, discriminator: discrim, ready: false });
 
   pickHost(room);
   broadcast(roomId);
 
-  ws.on("message", (raw) => {
-    try {
-      const msg = JSON.parse(raw);
-      if (msg.type === "ready") {
-        const p = room.players.get(ws);
-        if (p) p.ready = !!msg.ready;
-        broadcast(roomId);
-      } else if (msg.type === "start") {
-        if (room.hostId === id) {
-          const allReady = [...room.players.values()].every((p) => p.ready);
-          if (allReady) {
-            room.started = true;
-            broadcast(roomId);
-          }
-        }
-      }
-    } catch { }
+  bot.on("messageCreate", (msg) => {
+    // only mirror messages from a room's bound channel
+    for (const [rid, r] of rooms.entries()) {
+      if (!r.channelId || msg.channelId !== r.channelId) continue;
+      // push and broadcast
+      r.chat ||= [];
+      r.chat.push({
+        id: msg.id,
+        name: msg.member?.displayName || msg.author.username,
+        text: msg.content || "",
+        ts: msg.createdTimestamp,
+      });
+      // keep memory bounded
+      if (r.chat.length > 200) r.chat.splice(0, r.chat.length - 200);
+      broadcast(rid);
+    }
   });
 
   ws.on("close", () => {
