@@ -142,7 +142,7 @@ function maybeScheduleBots(roomId) {
         try {
           Engine.submitNightAction(roomId, botId, { targetId: target.id });
           broadcast(roomId); // propagate any change
-        } catch {}
+        } catch { }
       }, randomDelay());
     }
   }
@@ -161,7 +161,7 @@ function maybeScheduleBots(roomId) {
         try {
           Engine.vote(roomId, botId, voteId);
           broadcast(roomId);
-        } catch {}
+        } catch { }
       }, randomDelay(600, 1800));
     }
   }
@@ -258,6 +258,21 @@ wss.on("connection", (ws, req) => {
       let updatedState = null;
 
       switch (msg.type) {
+        case "joinRoom":
+          // Allow client to explicitly join/rejoin
+          updatedState = Engine.join(roomId, { id: ws.playerId, name: ws.playerName }, msg.asHost || false);
+          break;
+
+        case "identify":
+          // Simple ack to let the client know we see them
+          safeSend(ws, { type: "identified", playerId: ws.playerId, name: ws.playerName });
+          updatedState = Engine.getPublicState(roomId);
+          break;
+
+        case "ping":
+          safeSend(ws, { type: "pong", ts: Date.now() });
+          return; // don’t broadcast state
+
         case "becomeHost":
           Engine.join(roomId, { id: ws.playerId, name: ws.playerName }, true);
           updatedState = Engine.getPublicState(roomId);
