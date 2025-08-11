@@ -9,6 +9,7 @@ export default function App() {
   const [me, setMe] = useState(null);
   const [wsApi, setWsApi] = useState(null);
   const [roomState, setRoomState] = useState(null);
+  const [wsConnected, setWsConnected] = useState(false);
 
   const boot = useCallback(async () => {
     const { sdk, user } = await initDiscord();
@@ -17,7 +18,6 @@ export default function App() {
 
   const onBooted = useCallback(({ sdk, user }) => {
     setMe(user);
-    // Connect presence
     const api = connectPresence({
       sdk,
       me: user,
@@ -25,6 +25,7 @@ export default function App() {
         setRoomState(state);
         if (state.started) setPhase("game");
       },
+      onConnection: (connected) => setWsConnected(connected),
     });
     setWsApi(api);
     setPhase("lobby");
@@ -46,7 +47,7 @@ export default function App() {
           />
         );
       case "lobby":
-        return <Lobby me={me} state={roomState} api={wsApi} />;
+        return <Lobby me={me} state={roomState} api={wsApi} wsConnected={wsConnected} />;
       case "game":
         return (
           <div className="panel" style={{ textAlign: "center" }}>
@@ -62,7 +63,7 @@ export default function App() {
       default:
         return null;
     }
-  }, [phase, me, roomState, wsApi, boot, onBooted]);
+  }, [phase, me, roomState, wsApi, wsConnected, boot, onBooted]);
 
   return <div>{content}</div>;
 }

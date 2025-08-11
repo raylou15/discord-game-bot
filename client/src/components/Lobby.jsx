@@ -1,9 +1,9 @@
-export default function Lobby({ me, state, api }) {
+export default function Lobby({ me, state, api, wsConnected }) {
   const players = state?.players || [];
   const meEntry = players.find((p) => p.id === me?.id);
   const isHost = state?.hostId === me?.id;
   const everyoneReady = players.length > 0 && players.every((p) => p.ready);
-  const canStart = isHost && everyoneReady; // add min players rule if you want
+  const canStart = isHost && everyoneReady;
 
   return (
     <div>
@@ -37,10 +37,17 @@ export default function Lobby({ me, state, api }) {
       </div>
 
       <div style={{ display: "flex", gap: "12px" }}>
-        <button onClick={() => api.setReady(!meEntry?.ready)}>
-          {meEntry?.ready ? "Unready" : "Ready"}
+        <button
+          onClick={() => api.setReady(!meEntry?.ready)}
+          disabled={!wsConnected}
+        >
+          {!wsConnected
+            ? "Connecting..."
+            : meEntry?.ready
+            ? "Unready"
+            : "Ready"}
         </button>
-        <button disabled={!canStart} onClick={() => api.startGame()}>
+        <button disabled={!canStart || !wsConnected} onClick={() => api.startGame()}>
           Start Game
         </button>
       </div>
