@@ -133,3 +133,7 @@ server.on("upgrade", (req, socket, head) => {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => console.log("Server running on :" + PORT));
+
+if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
+  return res.status(500).json({ error: "Missing DISCORD_CLIENT_ID or DISCORD_CLIENT_SECRET" });
+}
