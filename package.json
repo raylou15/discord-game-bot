@@ -4,6 +4,7 @@
     "node-fetch": "^3.3.2"
   },
   "scripts": {
-    "devtunnel": "node auto_tunnel.js"
+    "devtunnel": "node auto_tunnel.js",
+    "test": "npm test --prefix server"
   }
 }

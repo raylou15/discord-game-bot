@@ -50,6 +50,42 @@ function cloneSettings(settings = {}) {
 // In-memory store: roomId -> game state
 const rooms = new Map();
 
+function summarizeNight(report) {
+    if (!report || report.type !== "night") return "";
+    if (!report.deaths || report.deaths.length === 0) {
+        return "🌙 Night: No one died.";
+    }
+    const names = report.deaths
+        .map(d => `${d.name} (${d.role})`)
+        .join(", ");
+    return `🌙 Night: ${names} died.`;
+}
+
+function summarizeDay(report) {
+    if (!report || report.type !== "day") return "";
+    if (report.lynched) {
+        const { name, role } = report.lynched;
+        return `☀️ Day: ${name} (${role}) was eliminated.`;
+    }
+    if (report.runoff) {
+        return "☀️ Day: Vote tied — runoff triggered.";
+    }
+    if (report.tie) {
+        return "☀️ Day: Vote tied — no elimination.";
+    }
+    return "☀️ Day: No elimination.";
+}
+
+function summarizeHunter(report) {
+    if (!report || report.type !== "hunter") return "";
+    const shooter = report.shooter?.name || "Hunter";
+    if (report.target) {
+        const { name, role } = report.target;
+        return `🎯 Hunter: ${shooter} eliminated ${name} (${role}).`;
+    }
+    return `🎯 Hunter: ${shooter} chose not to shoot.`;
+}
+
 function makeRoom() {
     return {
         phase: PHASES.LOBBY,
@@ -175,6 +211,7 @@ function resolveNight(room) {
         if (t) nightReport.inspected = { id: t.id, isWolf: t.role === ROLES.WEREWOLF };
     }
 
+    nightReport.summary = summarizeNight(nightReport);
     room.history.push(nightReport);
     room.actions = {};
 }
@@ -203,6 +240,7 @@ function resolveDay(room) {
 
     if (topTargets.length === 0 || max === 0) {
         dayReport.tie = true;
+        dayReport.summary = summarizeDay(dayReport);
         room.history.push(dayReport);
         room.votes = {};
         room.runoff = null;
@@ -220,6 +258,7 @@ function resolveDay(room) {
             };
             registerHunter(room, lynchTarget, "day");
         }
+        dayReport.summary = summarizeDay(dayReport);
         room.history.push(dayReport);
         room.votes = {};
         room.runoff = null;
@@ -242,6 +281,7 @@ function resolveDay(room) {
             registerHunter(room, lynchTarget, "day");
         }
         dayReport.tie = true;
+        dayReport.summary = summarizeDay(dayReport);
         room.history.push(dayReport);
         room.votes = {};
         room.runoff = null;
@@ -253,11 +293,13 @@ function resolveDay(room) {
         room.votes = {};
         dayReport.tie = true;
         dayReport.runoff = true;
+        dayReport.summary = summarizeDay(dayReport);
         room.history.push(dayReport);
         return { finished: false };
     }
 
     dayReport.tie = true;
+    dayReport.summary = summarizeDay(dayReport);
     room.history.push(dayReport);
     room.votes = {};
     room.runoff = null;
@@ -440,6 +482,17 @@ export const Engine = {
 
         const me = viewerId ? room.players.get(viewerId) : null;
         const mySecrets = {};
+        if (me?.role === ROLES.WEREWOLF) {
+            mySecrets.pack = {
+                members: [...room.players.values()]
+                    .filter(p => p.role === ROLES.WEREWOLF)
+                    .map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        alive: !!p.alive,
+                    })),
+            };
+        }
         if (me?.role === ROLES.SEER) {
             const lastNight = [...room.history].reverse().find(h => h.type === "night");
             if (lastNight?.inspected) mySecrets.lastSeen = lastNight.inspected;
@@ -557,6 +610,7 @@ export const Engine = {
             registerHunter(room, target, "hunter");
         }
 
+        report.summary = summarizeHunter(report);
         room.history.push(report);
 
         room.pendingHunter = null;
