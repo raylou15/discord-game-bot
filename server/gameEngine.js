@@ -15,6 +15,7 @@ export const PHASES = {
 };
 
 const MAX_WOLVES = (n) => Math.max(1, Math.floor(n / 4)); // ~25%
+const MIN_PLAYERS = 5;
 const REQUIRED_ACTIONS = new Set([ROLES.WEREWOLF, ROLES.SEER, ROLES.DOCTOR]);
 
 // In-memory store: roomId -> game state
@@ -25,7 +26,7 @@ function makeRoom() {
         phase: PHASES.LOBBY,
         hostId: null,
         day: 0,
-        players: new Map(), // id -> { id, name, alive, role, ready }
+        players: new Map(), // id -> { id, name, avatar, alive, role, ready }
         actions: {},
         votes: {},
         history: [],
@@ -74,7 +75,8 @@ function publicPlayer(p, revealRole = false) {
   return {
     id: p.id,
     name: p.name,
-    avatar: p.avatar || null, // ✅ keep avatar
+    avatar: p.avatar || null,
+    ready: !!p.ready,
     alive: p.alive,
     role: revealRole ? p.role : null,
   };
@@ -160,13 +162,22 @@ export const Engine = {
         return rooms.get(roomId);
     },
 
-    join(roomId, { id, name }, asHost = false) {
+    join(roomId, { id, name, avatar }, asHost = false) {
         const room = this.ensureRoom(roomId);
         if (!room.players.has(id)) {
-            room.players.set(id, { id, name, alive: true, role: null, ready: false });
+            room.players.set(id, {
+                id,
+                name,
+                avatar: avatar || null,
+                alive: true,
+                role: null,
+                ready: false,
+            });
             if (!room.hostId || asHost) room.hostId = id;
         } else {
-            room.players.get(id).name = name;
+            const existing = room.players.get(id);
+            existing.name = name;
+            if (avatar !== undefined) existing.avatar = avatar;
         }
         return this.getPublicState(roomId, id);
     },
@@ -175,18 +186,20 @@ export const Engine = {
         const room = this.ensureRoom(roomId);
         if (room.phase === PHASES.LOBBY) {
             room.players.delete(playerId);
-            if (room.hostId === playerId) {
-                room.hostId = alivePlayers(room)[0]?.id ?? null;
-            }
         } else {
             const p = room.players.get(playerId);
             if (p) p.alive = false;
+        }
+        if (room.hostId === playerId) {
+            room.hostId = alivePlayers(room)[0]?.id ?? null;
         }
         return this.getPublicState(roomId, playerId);
     },
 
     toggleReady(roomId, playerId, ready) {
-        const p = this.ensureRoom(roomId).players.get(playerId);
+        const room = this.ensureRoom(roomId);
+        if (room.phase !== PHASES.LOBBY) return this.getPublicState(roomId, playerId);
+        const p = room.players.get(playerId);
         if (p) p.ready = !!ready;
         return this.getPublicState(roomId, playerId);
     },
@@ -196,7 +209,14 @@ export const Engine = {
         if (room.phase !== PHASES.LOBBY || room.hostId !== requesterId) {
             return this.getPublicState(roomId, requesterId);
         }
-        if (alivePlayers(room).length < 5) throw new Error("Need at least 5 players.");
+        const lobbyPlayers = [...room.players.values()];
+        if (lobbyPlayers.length < MIN_PLAYERS) {
+            throw new Error(`Need at least ${MIN_PLAYERS} players.`);
+        }
+        const unready = lobbyPlayers.filter(p => !p.ready);
+        if (unready.length > 0) {
+            throw new Error("All players must be ready.");
+        }
 
         assignRoles(room);
         room.day = 0;
@@ -205,6 +225,11 @@ export const Engine = {
         room.votes = {};
         room.history = [];
         room.winner = null;
+
+        for (const p of room.players.values()) {
+            p.alive = true;
+            p.ready = false;
+        }
 
         return this.getPublicState(roomId, requesterId);
     },
@@ -279,13 +304,21 @@ export const Engine = {
         }
 
         return {
+            roomId,
             phase: room.phase,
             day: room.day,
             hostId: room.hostId,
             winner: room.winner,
+            started: room.phase !== PHASES.LOBBY,
             players: [...room.players.values()].map(p => publicPlayer(p, revealAll)),
             aliveIds: alivePlayers(room).map(p => p.id),
-            me: me ? { id: me.id, role: revealAll ? me.role : me.role ?? null } : null,
+            me: me
+                ? {
+                    id: me.id,
+                    role: revealAll ? me.role : me.role ?? null,
+                    ready: !!me.ready,
+                  }
+                : null,
             votes: room.phase === PHASES.DAY ? room.votes : null,
             history: room.history,
             mySecrets,
@@ -293,7 +326,20 @@ export const Engine = {
     },
 
     reset(roomId, requesterId) {
-        rooms.set(roomId, makeRoom());
+        const existing = this.ensureRoom(roomId);
+        const hostId = existing.hostId;
+        for (const p of existing.players.values()) {
+            p.alive = true;
+            p.role = null;
+            p.ready = false;
+        }
+        existing.phase = PHASES.LOBBY;
+        existing.day = 0;
+        existing.actions = {};
+        existing.votes = {};
+        existing.history = [];
+        existing.winner = null;
+        if (hostId) existing.hostId = hostId;
         return this.getPublicState(roomId, requesterId);
     },
 };

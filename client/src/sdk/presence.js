@@ -1,70 +1,72 @@
 // client/src/sdk/presence.js
-import { connect, onMessage } from "./ws";
+import { connect, onMessage, onConnectionChange, send, close as closeSocket } from "./ws";
 
 export function connectPresence({ sdk, me, onState, onConnection }) {
   let reconnectTimer;
   let manualClose = false;
 
-  function connectWS() {
-    const roomId = sdk?.channelId || sdk?.guildId || "dev-room";
-    const name = me?.username || me?.global_name || "Unknown";
-    const avatar = me?.avatar
-      ? `https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.png`
-      : null;
+  const roomId = sdk?.channelId || sdk?.guildId || "dev-room";
+  const name = me?.username || me?.global_name || me?.display_name || "Unknown";
+  const avatar = me?.avatar || null;
 
-    const ws = connect(roomId, me?.id, name, avatar);
+  const config = { roomId, id: me?.id, name, avatar };
 
-    onMessage((m) => {
-      if (m.type === "state") onState(m.state);
-      if (m.type === "error") console.error("Server error:", m.error);
-    });
-
-    ws.onopen = () => {
-      console.log("[presence] WS connected");
-      onConnection(true);
-    };
-
-    ws.onclose = () => {
-      console.log("[presence] WS disconnected");
-      onConnection(false);
-      if (!manualClose) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = setTimeout(connectWS, 3000);
-      }
-    };
-
-    return ws;
+  if (!config.id) {
+    throw new Error("connectPresence requires a Discord user id");
   }
 
-  const ws = connectWS();
+  onConnection?.(false);
+
+  const offMessage = onMessage((m) => {
+    if (m.type === "state") onState(m.state);
+    if (m.type === "error") console.error("Server error:", m.error);
+  });
+
+  const offConn = onConnectionChange((connected) => {
+    onConnection?.(connected);
+    if (!connected && !manualClose) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        try {
+          connect(config, { force: true });
+        } catch (err) {
+          console.error("[presence] reconnect failed", err);
+        }
+      }, 3000);
+    }
+  });
+
+  connect(config);
 
   return {
     setReady(ready) {
-      ws.send(JSON.stringify({ type: "toggleReady", ready: !!ready }));
+      send("toggleReady", { ready: !!ready });
     },
     startGame() {
-      ws.send(JSON.stringify({ type: "start" }));
+      send("start");
     },
     nightAction(targetId) {
-      ws.send(JSON.stringify({ type: "nightAction", targetId }));
+      send("nightAction", { targetId });
     },
     vote(targetId) {
-      ws.send(JSON.stringify({ type: "vote", targetId }));
+      send("vote", { targetId });
     },
     resetGame() {
-      ws.send(JSON.stringify({ type: "reset" }));
+      send("reset");
     },
     addBots(count = 6) {
       fetch("/api/dev/bots", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId: sdk?.channelId || "dev-room", count }),
+        body: JSON.stringify({ roomId: config.roomId, count }),
       });
     },
     close() {
       manualClose = true;
       clearTimeout(reconnectTimer);
-      ws?.close();
+      offMessage();
+      offConn();
+      closeSocket();
     },
   };
 }

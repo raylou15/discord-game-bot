@@ -8,6 +8,7 @@ const MIN_PLAYERS = 5;
 
 function avatarUrl(p) {
   if (p.avatar) {
+    if (p.avatar.startsWith("http")) return p.avatar;
     return `https://cdn.discordapp.com/avatars/${p.id}/${p.avatar}.png?size=64`;
   }
   const idx = Number(p.discriminator || 0) % 5;
