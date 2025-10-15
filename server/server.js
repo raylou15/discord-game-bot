@@ -90,7 +90,7 @@ function addBots(roomId, count = 5) {
     const id = `bot_${Math.random().toString(36).slice(2, 10)}`;
     const name = `Bot ${roomBots.size + 1} 🤖`;
     // Not host; join + ready
-    Engine.join(roomId, { id, name }, false);
+    Engine.join(roomId, { id, name, avatar: null }, false);
     Engine.toggleReady(roomId, id, true);
     roomBots.set(id, { name });
   }
@@ -228,7 +228,6 @@ function broadcast(roomId) {
 // ---- WebSocket Connection ----
 wss.on("connection", (ws, req) => {
   const { roomId, id, name, avatar } = parseQuery(req.url || "");
-  Engine.join(roomId, { id, name: ws.playerName, avatar }, false);
 
   if (!roomId || !id) {
     safeSend(ws, { type: "error", error: "Missing roomId or id" });
@@ -239,10 +238,11 @@ wss.on("connection", (ws, req) => {
   ws.roomId = roomId;
   ws.playerId = id;
   ws.playerName = name || `Player-${id.slice(0, 4)}`;
+  ws.avatar = avatar || null;
 
   console.log(`🔌 Player connected: ${ws.playerName} (${ws.playerId}) to room ${roomId}`);
 
-  const state = Engine.join(roomId, { id, name: ws.playerName }, false);
+  const state = Engine.join(roomId, { id, name: ws.playerName, avatar: ws.avatar }, false);
   safeSend(ws, { type: "state", state });
   broadcast(roomId);
 
@@ -261,7 +261,11 @@ wss.on("connection", (ws, req) => {
       switch (msg.type) {
         case "joinRoom":
           // Allow client to explicitly join/rejoin
-          updatedState = Engine.join(roomId, { id: ws.playerId, name: ws.playerName }, msg.asHost || false);
+          updatedState = Engine.join(
+            roomId,
+            { id: ws.playerId, name: ws.playerName, avatar: ws.avatar },
+            msg.asHost || false
+          );
           break;
 
         case "identify":

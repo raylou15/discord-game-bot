@@ -5,7 +5,7 @@ import Lobby from "./components/Lobby.jsx";
 import GameBoard from "./components/GameBoard.jsx";          // ⬅️ NEW
 import { initDiscord } from "./sdk/discord.js";
 import { connectPresence } from "./sdk/presence.js";
-import { connect, onMessage } from "./sdk/ws";                // ⬅️ NEW
+import { connect } from "./sdk/ws";                // ⬅️ NEW
 
 const TIPS = [
   "Tip: Wolves win at parity—don’t tunnel on one suspect.",
@@ -38,9 +38,13 @@ export default function App() {
       me: user,
       onState: (state) => {
         setRoomState(state);
-        // You can still flip to "game" if your presence announces it,
-        // but we’ll also flip when the game WS sends first state.
-        if (state.started) setPhase("game");
+        if (state.phase === "LOBBY") {
+          setPhase("lobby");
+          setGameState(null);
+        } else {
+          setGameState(state);
+          setPhase("game");
+        }
       },
       onConnection: (connected) => setWsConnected(connected),
     });
@@ -53,13 +57,12 @@ export default function App() {
 
   // === NEW: Join handler the Lobby will call ===
   function join(roomId, id, name) {
-    // Open game WS and start listening for engine state
-    connect(roomId, id, name);
-    onMessage((m) => {
-      if (m.type === "state") {
-        setGameState(m.state);
-        setPhase("game"); // switch to GameBoard on first state
-      }
+    // Ensure socket configuration knows about the lobby identity.
+    connect({
+      roomId,
+      id,
+      name,
+      avatar: me?.avatar || null,
     });
   }
 
