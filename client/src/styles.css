@@ -282,3 +282,72 @@ button:focus, button:focus-visible { outline: 3px solid var(--accent-color); }
 
 .targets { display: flex; flex-wrap: wrap; gap: 8px; }
 .targets button { flex: 1 1 auto; min-width: 120px; }
+
+.event-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-left: 4px solid #67b7ff;
+}
+
+.event-feed ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.95em;
+}
+
+.event-feed li {
+  background: rgba(103, 183, 255, 0.12);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.wolf-pack {
+  margin-bottom: 12px;
+  background: rgba(255, 120, 140, 0.08);
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.wolf-pack h4 {
+  margin: 0 0 6px 0;
+  font-size: 0.95em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.wolf-pack ul {
+  list-style: none;
+  margin: 0 0 8px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wolf-pack li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95em;
+}
+
+.wolf-pack .status {
+  font-size: 0.8em;
+  opacity: 0.8;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.wolf-pack .status.alive {
+  color: #8af5c9;
+}
+
+.wolf-pack .status.dead {
+  color: #ff9aa2;
+}

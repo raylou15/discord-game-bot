@@ -17,6 +17,32 @@ function tallyVotes(votes = {}) {
   return t;
 }
 
+function describeHistoryEntry(entry) {
+  if (!entry) return "";
+  if (entry.summary) return entry.summary;
+  if (entry.type === "night") {
+    if (entry.deaths?.length) {
+      return `🌙 Night: ${entry.deaths.map(d => `${d.name} (${d.role})`).join(", ")} died.`;
+    }
+    return "🌙 Night: No one died.";
+  }
+  if (entry.type === "day") {
+    if (entry.lynched) {
+      return `☀️ Day: ${entry.lynched.name} (${entry.lynched.role}) was eliminated.`;
+    }
+    if (entry.runoff) return "☀️ Day: Vote tied — runoff triggered.";
+    if (entry.tie) return "☀️ Day: Vote tied — no elimination.";
+    return "☀️ Day: No elimination.";
+  }
+  if (entry.type === "hunter") {
+    if (entry.target) {
+      return `🎯 Hunter: ${(entry.shooter?.name) || "Hunter"} eliminated ${entry.target.name} (${entry.target.role}).`;
+    }
+    return `🎯 Hunter: ${(entry.shooter?.name) || "Hunter"} chose not to shoot.`;
+  }
+  return "";
+}
+
 export default function GameBoard({ state }) {
   const [local, setLocal] = useState(state);
   const [timeLeft, setTimeLeft] = useState(null); // seconds or null
@@ -58,6 +84,10 @@ export default function GameBoard({ state }) {
   const myVote = votes && votes[selfId] ? votes[selfId] : null;
   const voteTally = useMemo(() => (phase === "DAY" ? tallyVotes(votes) : new Map()), [phase, votes]);
   const runoffList = Array.isArray(runoffCandidates) && runoffCandidates.length > 0 ? runoffCandidates : null;
+  const latestEvents = useMemo(() => {
+    if (!history || history.length === 0) return [];
+    return [...history].slice(-3).reverse();
+  }, [history]);
 
   return (
     <div className="game-board">
@@ -83,6 +113,8 @@ export default function GameBoard({ state }) {
           )}
         </div>
       </header>
+
+      <EventFeed events={latestEvents} />
 
       {/* Two-column main area on larger screens (falls back to stacked on mobile via CSS) */}
       <section className="players">
@@ -163,6 +195,7 @@ function NightPanel({ state, selfId }) {
   const aliveSet = new Set(state.aliveIds || []);
   // you can’t target yourself at night
   const targets = state.players.filter(p => aliveSet.has(p.id) && p.id !== selfId);
+  const pack = self.role === "Werewolf" ? state.mySecrets?.pack?.members || [] : [];
 
   if (!canAct) {
     return (
@@ -176,6 +209,22 @@ function NightPanel({ state, selfId }) {
   return (
     <div className="panel night">
       <h3>🌙 Night Action — {self.role}</h3>
+      {self.role === "Werewolf" && (
+        <div className="wolf-pack">
+          <h4>Packmates</h4>
+          <ul>
+            {pack.map((mate) => (
+              <li key={mate.id}>
+                {mate.id === selfId ? `${mate.name} (You)` : mate.name}
+                <span className={mate.alive ? "status alive" : "status dead"}>
+                  {mate.alive ? "Alive" : "Fallen"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="muted small">Coordinate with your pack. Selecting a target sets the shared kill.</p>
+        </div>
+      )}
       {self.role === "Seer" && state.mySecrets?.lastSeen && (
         <p className="seer-info" style={{ marginBottom: 8 }}>
           Last inspection: {state.mySecrets.lastSeen.isWolf ? "🐺 WOLF" : "🙂 Not a Wolf"}
@@ -335,37 +384,24 @@ function HistoryPanel({ history }) {
       <ul style={{ marginTop: 8, paddingLeft: 18 }}>
         {history.map((h, idx) => (
           <li key={idx} style={{ marginBottom: 6 }}>
-            {h.type === "night" && (
-              <>
-                🌙 Night:{" "}
-                {h.deaths?.length
-                  ? `${h.deaths.map(d => `${d.name} (${d.role})`).join(", ")} died`
-                  : "No one died"}
-              </>
-            )}
-            {h.type === "day" && (
-              <>
-                ☀️ Day:{" "}
-                {h.lynched
-                  ? `${h.lynched.name} (${h.lynched.role}) was lynched`
-                  : h.runoff
-                  ? "Vote tied — runoff triggered"
-                  : h.tie
-                  ? "Vote tied — no lynch"
-                  : "No lynch"}
-              </>
-            )}
-            {h.type === "hunter" && (
-              <>
-                🎯 Hunter shot: {h.shooter?.name || "Hunter"}{" "}
-                {h.target
-                  ? `eliminated ${h.target.name} (${h.target.role})`
-                  : "chose not to shoot"}
-              </>
-            )}
+            {describeHistoryEntry(h)}
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+function EventFeed({ events }) {
+  if (!events || events.length === 0) return null;
+  return (
+    <section className="event-feed panel">
+      <h3>Latest Events</h3>
+      <ul>
+        {events.map((entry, idx) => (
+          <li key={idx}>{describeHistoryEntry(entry)}</li>
+        ))}
+      </ul>
+    </section>
   );
 }
