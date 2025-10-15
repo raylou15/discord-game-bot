@@ -54,6 +54,9 @@ export function connectPresence({ sdk, me, onState, onConnection }) {
     resetGame() {
       send("reset");
     },
+    updateSettings(settings) {
+      send("updateSettings", { settings });
+    },
     addBots(count = 6) {
       fetch("/api/dev/bots", {
         method: "POST",

@@ -47,7 +47,7 @@ export default function GameBoard({ state }) {
 
   if (!local) return null;
 
-  const { phase, day, players, me: self, winner, hostId, history, votes } = local;
+  const { phase, day, players, me: self, winner, hostId, history, votes, pendingHunter, runoffCandidates } = local;
   const selfId = self?.id || "";
   const isHost = hostId === selfId;
 
@@ -57,6 +57,7 @@ export default function GameBoard({ state }) {
 
   const myVote = votes && votes[selfId] ? votes[selfId] : null;
   const voteTally = useMemo(() => (phase === "DAY" ? tallyVotes(votes) : new Map()), [phase, votes]);
+  const runoffList = Array.isArray(runoffCandidates) && runoffCandidates.length > 0 ? runoffCandidates : null;
 
   return (
     <div className="game-board">
@@ -110,19 +111,26 @@ export default function GameBoard({ state }) {
       </section>
 
       <section className="action-panel">
-        {phase === "LOBBY" && <LobbyPanel />}
-        {phase === "NIGHT" && (
-          <NightPanel state={local} selfId={selfId} />
+        {pendingHunter ? (
+          <HunterPanel state={local} selfId={selfId} />
+        ) : (
+          <>
+            {phase === "LOBBY" && <LobbyPanel />}
+            {phase === "NIGHT" && (
+              <NightPanel state={local} selfId={selfId} />
+            )}
+            {phase === "DAY" && (
+              <DayPanel
+                state={local}
+                selfId={selfId}
+                myVote={myVote}
+                voteTally={voteTally}
+                runoffCandidates={runoffList}
+              />
+            )}
+            {phase === "ENDED" && <HistoryPanel history={history} />}
+          </>
         )}
-        {phase === "DAY" && (
-          <DayPanel
-            state={local}
-            selfId={selfId}
-            myVote={myVote}
-            voteTally={voteTally}
-          />
-        )}
-        {phase === "ENDED" && <HistoryPanel history={history} />}
       </section>
     </div>
   );
@@ -191,12 +199,20 @@ function NightPanel({ state, selfId }) {
 
 /* ---------------- DAY ---------------- */
 
-function DayPanel({ state, selfId, myVote, voteTally }) {
+function DayPanel({ state, selfId, myVote, voteTally, runoffCandidates }) {
   const aliveSet = new Set(state.aliveIds || []);
-  const targets = state.players.filter(p => aliveSet.has(p.id));
+  let targets = state.players.filter(p => aliveSet.has(p.id));
+
+  if (runoffCandidates) {
+    const allowed = new Set(runoffCandidates);
+    targets = targets.filter(p => allowed.has(p.id));
+  }
 
   // sort by votes desc for readability
   const orderedTargets = [...targets].sort((a, b) => (voteTally.get(b.id) || 0) - (voteTally.get(a.id) || 0));
+  const runoffNames = runoffCandidates
+    ? orderedTargets.map(t => t.name).join(", ")
+    : null;
 
   return (
     <div className="panel day">
@@ -204,6 +220,12 @@ function DayPanel({ state, selfId, myVote, voteTally }) {
       <p className="muted" style={{ marginBottom: 8 }}>
         Discuss and vote for a suspect. You can change your vote any time until everyone has voted.
       </p>
+
+      {runoffCandidates && (
+        <p className="muted small" style={{ marginBottom: 8 }}>
+          Runoff vote in progress — eligible targets: {runoffNames || "(none)"}
+        </p>
+      )}
 
       <div className="targets">
         {orderedTargets.map(t => {
@@ -228,6 +250,70 @@ function DayPanel({ state, selfId, myVote, voteTally }) {
           Abstain
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ---------------- HUNTER ---------------- */
+
+function HunterPanel({ state, selfId }) {
+  const pending = state.pendingHunter;
+  if (!pending) return null;
+
+  const shooterId = pending.player?.id;
+  const shooterName = pending.player?.name || "Hunter";
+  const cause = pending.cause;
+  const causeText =
+    cause === "night"
+      ? "during the night"
+      : cause === "day"
+      ? "by the day vote"
+      : cause === "hunter"
+      ? "by another Hunter"
+      : "";
+  const causeLabel =
+    cause === "night"
+      ? "night kill"
+      : cause === "day"
+      ? "day vote"
+      : cause === "hunter"
+      ? "Hunter shot"
+      : null;
+
+  if (shooterId === selfId) {
+    const targets = state.mySecrets?.hunterShot?.targets || [];
+    return (
+      <div className="panel hunter">
+        <h3>🎯 Hunter's Revenge</h3>
+        <p className="muted" style={{ marginBottom: 8 }}>
+          You were eliminated{causeText ? ` ${causeText}` : ""}. Choose someone to take with you.
+        </p>
+
+        <div className="targets" style={{ marginBottom: 12 }}>
+          {targets.length > 0 ? (
+            targets.map((t) => (
+              <button key={t.id} onClick={() => send("hunterShoot", { targetId: t.id })}>
+                {t.name}
+              </button>
+            ))
+          ) : (
+            <p className="muted">No valid targets remain.</p>
+          )}
+        </div>
+
+        <button className="secondary" onClick={() => send("hunterShoot", { targetId: null })}>
+          {targets.length > 0 ? "Skip Shot" : "Acknowledge"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="panel hunter waiting">
+      <h3>🎯 Hunter's Revenge</h3>
+      <p className="muted">
+        Waiting for {shooterName} to choose a target{causeLabel ? ` (${causeLabel})` : ""}…
+      </p>
     </div>
   );
 }
@@ -262,9 +348,19 @@ function HistoryPanel({ history }) {
                 ☀️ Day:{" "}
                 {h.lynched
                   ? `${h.lynched.name} (${h.lynched.role}) was lynched`
+                  : h.runoff
+                  ? "Vote tied — runoff triggered"
                   : h.tie
                   ? "Vote tied — no lynch"
                   : "No lynch"}
+              </>
+            )}
+            {h.type === "hunter" && (
+              <>
+                🎯 Hunter shot: {h.shooter?.name || "Hunter"}{" "}
+                {h.target
+                  ? `eliminated ${h.target.name} (${h.target.role})`
+                  : "chose not to shoot"}
               </>
             )}
           </li>
