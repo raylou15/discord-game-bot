@@ -75,6 +75,7 @@ const wss = new WebSocketServer({ noServer: true });
  */
 const botsByRoom = new Map(); // roomId -> Map(botId -> { name })
 const phaseMarker = new Map(); // roomId -> string (last scheduled phase)
+const hunterMarker = new Map(); // roomId -> pending hunter id handled
 
 function randomDelay(minMs = 400, maxMs = 1500) {
   return Math.floor(minMs + Math.random() * (maxMs - minMs));
@@ -105,6 +106,7 @@ function removeBots(roomId) {
   }
   botsByRoom.delete(roomId);
   phaseMarker.delete(roomId);
+  hunterMarker.delete(roomId);
 }
 
 /**
@@ -115,14 +117,33 @@ function maybeScheduleBots(roomId) {
   if (!bots || bots.size === 0) return;
 
   const state = Engine.getPublicState(roomId); // public state is enough
+
+  const aliveSet = new Set(state.aliveIds || []);
+  const alivePlayers = state.players.filter(p => aliveSet.has(p.id));
+
+  const pendingHunterId = state.pendingHunter?.player?.id;
+  if (pendingHunterId) {
+    if (bots.has(pendingHunterId) && hunterMarker.get(roomId) !== pendingHunterId) {
+      hunterMarker.set(roomId, pendingHunterId);
+      const choices = alivePlayers.filter(p => p.id !== pendingHunterId);
+      const target = choices.length ? randFrom(choices) : null;
+      setTimeout(() => {
+        try {
+          Engine.hunterShoot(roomId, pendingHunterId, target?.id || null);
+          broadcast(roomId);
+        } catch { }
+      }, randomDelay());
+    }
+    return;
+  }
+
+  hunterMarker.delete(roomId);
+
   const currentPhase = state.phase;
   const last = phaseMarker.get(roomId);
   if (last === currentPhase) return; // already scheduled for this phase
 
   phaseMarker.set(roomId, currentPhase);
-
-  const aliveSet = new Set(state.aliveIds || []);
-  const alivePlayers = state.players.filter(p => aliveSet.has(p.id));
 
   // If lobby just started, auto-start when everyone (including bots) is ready.
   if (currentPhase === "LOBBY") {
@@ -297,8 +318,16 @@ wss.on("connection", (ws, req) => {
           });
           break;
 
+        case "updateSettings":
+          updatedState = Engine.updateSettings(roomId, ws.playerId, msg.settings || {});
+          break;
+
         case "vote":
           updatedState = Engine.vote(roomId, ws.playerId, msg.targetId ?? null);
+          break;
+
+        case "hunterShoot":
+          updatedState = Engine.hunterShoot(roomId, ws.playerId, msg.targetId || null);
           break;
 
         case "reset":

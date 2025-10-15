@@ -7,6 +7,19 @@ export const ROLES = {
     HUNTER: "Hunter",
 };
 
+const ROLE_UNLOCKS = {
+    seer: 6,
+    doctor: 7,
+    hunter: 9,
+    extraWolf: 10,
+};
+
+const DEFAULT_SETTINGS = {
+    roles: { seer: true, doctor: true, hunter: false, extraWolf: false },
+    tieRule: "no-elim",
+    dayTimerSec: 120,
+};
+
 export const PHASES = {
     LOBBY: "LOBBY",
     NIGHT: "NIGHT",
@@ -17,6 +30,22 @@ export const PHASES = {
 const MAX_WOLVES = (n) => Math.max(1, Math.floor(n / 4)); // ~25%
 const MIN_PLAYERS = 5;
 const REQUIRED_ACTIONS = new Set([ROLES.WEREWOLF, ROLES.SEER, ROLES.DOCTOR]);
+
+function cloneSettings(settings = {}) {
+    const merged = {
+        roles: {
+            ...DEFAULT_SETTINGS.roles,
+            ...(settings.roles || {}),
+        },
+        tieRule: settings.tieRule || DEFAULT_SETTINGS.tieRule,
+        dayTimerSec: Number.isFinite(Number(settings.dayTimerSec))
+            ? Number(settings.dayTimerSec)
+            : DEFAULT_SETTINGS.dayTimerSec,
+    };
+
+    merged.dayTimerSec = Math.min(600, Math.max(30, Math.round(merged.dayTimerSec)));
+    return merged;
+}
 
 // In-memory store: roomId -> game state
 const rooms = new Map();
@@ -31,6 +60,12 @@ function makeRoom() {
         votes: {},
         history: [],
         winner: null,
+        settings: cloneSettings(),
+        phaseEndsAt: null,
+        pendingHunterQueue: [],
+        pendingHunter: null,
+        nextPhase: null,
+        runoff: null,
     };
 }
 
@@ -50,12 +85,17 @@ function assignRoles(room) {
     shuffle(ids);
 
     const n = ids.length;
-    const wolfCount = MAX_WOLVES(n);
+    const settings = room.settings || cloneSettings();
+
+    let wolfCount = MAX_WOLVES(n);
+    if (settings.roles.extraWolf && n >= ROLE_UNLOCKS.extraWolf) {
+        wolfCount = Math.min(n - 1, wolfCount + 1);
+    }
 
     const specials = [];
-    if (n >= 6) specials.push(ROLES.SEER);
-    if (n >= 7) specials.push(ROLES.DOCTOR);
-    if (n >= 9) specials.push(ROLES.HUNTER);
+    if (settings.roles.seer && n >= ROLE_UNLOCKS.seer) specials.push(ROLES.SEER);
+    if (settings.roles.doctor && n >= ROLE_UNLOCKS.doctor) specials.push(ROLES.DOCTOR);
+    if (settings.roles.hunter && n >= ROLE_UNLOCKS.hunter) specials.push(ROLES.HUNTER);
 
     const roleBag = [
         ...Array(wolfCount).fill(ROLES.WEREWOLF),
@@ -91,6 +131,26 @@ function checkWin(room) {
     return null;
 }
 
+function registerHunter(room, player, cause) {
+    if (!player || player.role !== ROLES.HUNTER) return;
+    room.pendingHunterQueue.push({ id: player.id, cause });
+}
+
+function activatePendingHunter(room) {
+    if (room.pendingHunter || room.pendingHunterQueue.length === 0) return false;
+    const entry = room.pendingHunterQueue.shift();
+    room.pendingHunter = entry;
+    room.phaseEndsAt = null;
+    return true;
+}
+
+function maybeStartDayTimer(room) {
+    if (room.phase === PHASES.DAY && !room.pendingHunter) {
+        const sec = room.settings?.dayTimerSec ?? DEFAULT_SETTINGS.dayTimerSec;
+        room.phaseEndsAt = Date.now() + sec * 1000;
+    }
+}
+
 function resolveNight(room) {
     const { wolvesTargetId, doctorSaveId, seerInspectId } = room.actions;
     const nightReport = { type: "night", deaths: [], inspected: null };
@@ -105,6 +165,7 @@ function resolveNight(room) {
                 name: target.name,
                 role: target.role
             });
+            registerHunter(room, target, "night");
         }
     }
 
@@ -123,6 +184,7 @@ function resolveDay(room) {
     for (const [voterId, targetId] of Object.entries(room.votes)) {
         const voter = room.players.get(voterId);
         if (!voter?.alive || !targetId) continue;
+        if (room.runoff && !room.runoff.includes(targetId)) continue;
         tally.set(targetId, (tally.get(targetId) || 0) + 1);
     }
 
@@ -137,8 +199,17 @@ function resolveDay(room) {
         }
     }
 
-    const dayReport = { type: "day", lynched: null, tie: false };
-    if (topTargets.length === 1 && max > 0) {
+    const dayReport = { type: "day", lynched: null, tie: false, runoff: false };
+
+    if (topTargets.length === 0 || max === 0) {
+        dayReport.tie = true;
+        room.history.push(dayReport);
+        room.votes = {};
+        room.runoff = null;
+        return { finished: true };
+    }
+
+    if (topTargets.length === 1) {
         const lynchTarget = room.players.get(topTargets[0]);
         if (lynchTarget?.alive) {
             lynchTarget.alive = false;
@@ -147,13 +218,50 @@ function resolveDay(room) {
                 name: lynchTarget.name,
                 role: lynchTarget.role
             };
+            registerHunter(room, lynchTarget, "day");
         }
-    } else {
-        dayReport.tie = true;
+        room.history.push(dayReport);
+        room.votes = {};
+        room.runoff = null;
+        return { finished: true };
     }
 
+    // Tie cases
+    const tieRule = room.settings?.tieRule || DEFAULT_SETTINGS.tieRule;
+
+    if (tieRule === "random") {
+        const chosen = topTargets[Math.floor(Math.random() * topTargets.length)];
+        const lynchTarget = room.players.get(chosen);
+        if (lynchTarget?.alive) {
+            lynchTarget.alive = false;
+            dayReport.lynched = {
+                id: lynchTarget.id,
+                name: lynchTarget.name,
+                role: lynchTarget.role
+            };
+            registerHunter(room, lynchTarget, "day");
+        }
+        dayReport.tie = true;
+        room.history.push(dayReport);
+        room.votes = {};
+        room.runoff = null;
+        return { finished: true };
+    }
+
+    if (tieRule === "runoff" && !room.runoff) {
+        room.runoff = [...topTargets];
+        room.votes = {};
+        dayReport.tie = true;
+        dayReport.runoff = true;
+        room.history.push(dayReport);
+        return { finished: false };
+    }
+
+    dayReport.tie = true;
     room.history.push(dayReport);
     room.votes = {};
+    room.runoff = null;
+    return { finished: true };
 }
 
 export const Engine = {
@@ -193,6 +301,9 @@ export const Engine = {
         if (room.hostId === playerId) {
             room.hostId = alivePlayers(room)[0]?.id ?? null;
         }
+        if (room.pendingHunter?.id === playerId) {
+            this.hunterShoot(roomId, playerId, null);
+        }
         return this.getPublicState(roomId, playerId);
     },
 
@@ -218,6 +329,7 @@ export const Engine = {
             throw new Error("All players must be ready.");
         }
 
+        room.settings = cloneSettings(room.settings);
         assignRoles(room);
         room.day = 0;
         room.phase = PHASES.NIGHT;
@@ -225,6 +337,11 @@ export const Engine = {
         room.votes = {};
         room.history = [];
         room.winner = null;
+        room.phaseEndsAt = null;
+        room.pendingHunterQueue = [];
+        room.pendingHunter = null;
+        room.nextPhase = null;
+        room.runoff = null;
 
         for (const p of room.players.values()) {
             p.alive = true;
@@ -257,13 +374,22 @@ export const Engine = {
 
         if (allDone) {
             resolveNight(room);
+            const pending = activatePendingHunter(room);
             const winner = checkWin(room);
-            if (winner) {
+            if (winner && !pending) {
                 room.phase = PHASES.ENDED;
                 room.winner = winner;
+                room.phaseEndsAt = null;
+                room.nextPhase = null;
             } else {
-                room.phase = PHASES.DAY;
                 room.day++;
+                if (pending) {
+                    room.nextPhase = PHASES.DAY;
+                } else {
+                    room.phase = PHASES.DAY;
+                    room.nextPhase = null;
+                    maybeStartDayTimer(room);
+                }
             }
         }
         return this.getPublicState(roomId, playerId);
@@ -272,21 +398,37 @@ export const Engine = {
     vote(roomId, playerId, targetId) {
         const room = this.ensureRoom(roomId);
         if (room.phase !== PHASES.DAY) return this.getPublicState(roomId, playerId);
+        if (room.pendingHunter) return this.getPublicState(roomId, playerId);
 
         const voter = room.players.get(playerId);
         if (!voter?.alive) return this.getPublicState(roomId, playerId);
+
+        if (room.runoff && targetId && !room.runoff.includes(targetId)) {
+            return this.getPublicState(roomId, playerId);
+        }
 
         room.votes[playerId] = targetId || null;
 
         const aliveIds = alivePlayers(room).map(p => p.id);
         if (aliveIds.every(id => id in room.votes)) {
-            resolveDay(room);
-            const winner = checkWin(room);
-            if (winner) {
-                room.phase = PHASES.ENDED;
-                room.winner = winner;
-            } else {
-                room.phase = PHASES.NIGHT;
+            const outcome = resolveDay(room);
+            if (outcome.finished) {
+                const pending = activatePendingHunter(room);
+                const winner = checkWin(room);
+                if (winner && !pending) {
+                    room.phase = PHASES.ENDED;
+                    room.winner = winner;
+                    room.phaseEndsAt = null;
+                    room.nextPhase = null;
+                } else {
+                    if (pending) {
+                        room.nextPhase = PHASES.NIGHT;
+                    } else {
+                        room.phase = PHASES.NIGHT;
+                        room.nextPhase = null;
+                        room.phaseEndsAt = null;
+                    }
+                }
             }
         }
         return this.getPublicState(roomId, playerId);
@@ -297,11 +439,32 @@ export const Engine = {
         const revealAll = room.phase === PHASES.ENDED;
 
         const me = viewerId ? room.players.get(viewerId) : null;
-        let mySecrets = null;
+        const mySecrets = {};
         if (me?.role === ROLES.SEER) {
             const lastNight = [...room.history].reverse().find(h => h.type === "night");
-            if (lastNight?.inspected) mySecrets = { lastSeen: lastNight.inspected };
+            if (lastNight?.inspected) mySecrets.lastSeen = lastNight.inspected;
         }
+        if (room.pendingHunter?.id === me?.id) {
+            mySecrets.hunterShot = {
+                targets: alivePlayers(room)
+                    .filter(p => p.id !== me.id)
+                    .map(p => ({ id: p.id, name: p.name })),
+            };
+        }
+
+        const secretsOut = Object.keys(mySecrets).length > 0 ? mySecrets : null;
+
+        const pendingHunter = room.pendingHunter
+            ? {
+                player: (() => {
+                    const hunter = room.players.get(room.pendingHunter.id);
+                    return hunter
+                        ? { id: hunter.id, name: hunter.name }
+                        : { id: room.pendingHunter.id, name: "Hunter" };
+                })(),
+                cause: room.pendingHunter.cause,
+              }
+            : null;
 
         return {
             roomId,
@@ -310,6 +473,7 @@ export const Engine = {
             hostId: room.hostId,
             winner: room.winner,
             started: room.phase !== PHASES.LOBBY,
+            settings: room.settings,
             players: [...room.players.values()].map(p => publicPlayer(p, revealAll)),
             aliveIds: alivePlayers(room).map(p => p.id),
             me: me
@@ -321,7 +485,10 @@ export const Engine = {
                 : null,
             votes: room.phase === PHASES.DAY ? room.votes : null,
             history: room.history,
-            mySecrets,
+            mySecrets: secretsOut,
+            pendingHunter,
+            phaseEndsAt: room.phaseEndsAt,
+            runoffCandidates: room.runoff ? [...room.runoff] : null,
         };
     },
 
@@ -339,7 +506,83 @@ export const Engine = {
         existing.votes = {};
         existing.history = [];
         existing.winner = null;
+        existing.phaseEndsAt = null;
+        existing.pendingHunterQueue = [];
+        existing.pendingHunter = null;
+        existing.nextPhase = null;
+        existing.runoff = null;
         if (hostId) existing.hostId = hostId;
         return this.getPublicState(roomId, requesterId);
+    },
+
+    updateSettings(roomId, playerId, patch) {
+        const room = this.ensureRoom(roomId);
+        if (room.hostId !== playerId) {
+            return this.getPublicState(roomId, playerId);
+        }
+        if (room.phase !== PHASES.LOBBY) {
+            throw new Error("Settings can only be changed in the lobby.");
+        }
+
+        const next = cloneSettings({ ...room.settings, ...patch, roles: { ...room.settings.roles, ...(patch?.roles || {}) } });
+        const playerCount = room.players.size;
+        for (const [key, unlock] of Object.entries(ROLE_UNLOCKS)) {
+            if (playerCount < unlock) {
+                next.roles[key] = false;
+            }
+        }
+        room.settings = next;
+        return this.getPublicState(roomId, playerId);
+    },
+
+    hunterShoot(roomId, playerId, targetId) {
+        const room = this.ensureRoom(roomId);
+        if (!room.pendingHunter || room.pendingHunter.id !== playerId) {
+            return this.getPublicState(roomId, playerId);
+        }
+
+        const shooter = room.players.get(playerId);
+        const report = {
+            type: "hunter",
+            shooter: shooter
+                ? { id: shooter.id, name: shooter.name, role: shooter.role }
+                : { id: playerId, name: "Hunter", role: ROLES.HUNTER },
+            target: null,
+        };
+
+        const target = targetId ? room.players.get(targetId) : null;
+        if (target?.alive && target.id !== playerId) {
+            target.alive = false;
+            report.target = { id: target.id, name: target.name, role: target.role };
+            registerHunter(room, target, "hunter");
+        }
+
+        room.history.push(report);
+
+        room.pendingHunter = null;
+
+        if (activatePendingHunter(room)) {
+            // Another hunter death was queued (chain reaction)
+        } else {
+            const winner = checkWin(room);
+            if (winner) {
+                room.phase = PHASES.ENDED;
+                room.winner = winner;
+                room.phaseEndsAt = null;
+                room.nextPhase = null;
+            } else if (room.nextPhase) {
+                room.phase = room.nextPhase;
+                room.nextPhase = null;
+                if (room.phase === PHASES.DAY) {
+                    maybeStartDayTimer(room);
+                } else {
+                    room.phaseEndsAt = null;
+                }
+            } else if (room.phase === PHASES.DAY) {
+                maybeStartDayTimer(room);
+            }
+        }
+
+        return this.getPublicState(roomId, playerId);
     },
 };
